@@ -1,0 +1,30 @@
+
+### 具体开发任务
+1. 利用datadog的库加载第一个eBPF程序  
+- 开发tc count packet的eBPF程序  
+- go 加载ebpf程序  
+- 完整测试过程  
+- push代码  
+
+2. 开发第一个功能，delay包  
+
+
+### Notes
+1. 查看安装的eBPF程序
+```
+sudo bpftool prog show
+```
+
+
+2. eBPF加载报错 map .rodata  
+couldn't load eBPF programs: map .rodata: map create: read- and write-only maps not supported (requires >= v5.2)  
+是bpf_printk创建的数组报错了：   
+```
+$ llvm-objdump pkg/ebpf/bin/tc.o -dj .rodata
+pkg/ebpf/bin/tc.o:      file format elf64-bpf
+
+Disassembly of section .rodata:
+
+0000000000000000 <one.____fmt>:
+       0:       28 63 6c 61 73 73 69 66 r0 = *(u16 *)skb[1718186867]
+```
