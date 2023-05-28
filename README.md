@@ -13,7 +13,7 @@ $ tree -L 1
 ├── ebpf		# eBPF程序
 ├── go.mod		# go 工程文件
 ├── go.sum		# go 依赖库版本锁定
-├── Makefile	# 编译脚本
+├── Makefile
 ├── pkg			# 项目主要代码
 ├── README.md
 ├── scripts		# 启动和测试脚本
@@ -23,6 +23,7 @@ $ tree -L 1
 #### 编译说明  
 1. 安装项目依赖库  
 ```
+sudo apt install clang
 go mod tidy
 ```
 

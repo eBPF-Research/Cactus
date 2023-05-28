@@ -2,10 +2,10 @@
 all: build-go
 .PHONY: clean
 
-CLANG := clang-13
+CLANG := clang-14
 SHELL := /bin/bash
 
-build-bpf: ebpf/tc/*.h ebpf/main.c
+build-bpf: ebpf/tc/*.h ebpf/xdp/*.h ebpf/main.c
 	mkdir -p pkg/ebpf/bin
 	$(CLANG) -D__KERNEL__ -DCONFIG_64BIT -D__ASM_SYSREG_H -D__x86_64__ -DUSE_SYSCALL_WRAPPER=1 -D__BPF_TRACING__ -DKBUILD_MODNAME=\"eshuffler\" \
 		-Wno-unused-value \
@@ -23,7 +23,7 @@ build-bpf: ebpf/tc/*.h ebpf/main.c
 		-Iebpf/ \
 		-c -O2 -g -target bpf \
 		ebpf/main.c \
-		-o pkg/ebpf/bin/tc.o
+		-o pkg/ebpf/bin/bpf.o
 
 build-go: build-bpf
 	mkdir -p bin

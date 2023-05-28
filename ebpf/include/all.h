@@ -23,17 +23,16 @@
 #include "vmlinux_5_15_0.h"
 #include "tc_xdp.h"
 
+#pragma clang diagnostic pop
+
 #else
 #include "kernel.h"
 #endif // USE_CO_RE
 
+#include "bpf_core_read.h"
 #include "bpf_helpers.h"
 #include "bpf_tracing.h"
 #include <errno.h>
 #include "mydef.h"
-
-#pragma clang diagnostic pop
-
-#include "bpf_core_read.h"
 
 #endif
