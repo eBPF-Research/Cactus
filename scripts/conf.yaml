@@ -1,0 +1,13 @@
+
+net_inf: eth0
+mode: 0b11111111
+alpha: 0.2
+beta: 0.3
+# inf_index: 1
+
+# mode 用位表示, 当前可用模式。可单独开启一种，也可都开
+# op-2: 0b000010 dummy
+# op-4: 0b001000 random drop
+# op-5: 0b010000 partial upload
+# 0b11111111
+# beta * 100 = precent

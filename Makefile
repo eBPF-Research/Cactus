@@ -6,7 +6,7 @@ CLANG := clang-14
 SHELL := /bin/bash
 
 build-bpf: ebpf/tc/*.h ebpf/xdp/*.h ebpf/main.c
-	mkdir -p pkg/ebpf/bin
+	mkdir -p pkg/eshuffler/bin
 	$(CLANG) -D__KERNEL__ -DCONFIG_64BIT -D__ASM_SYSREG_H -D__x86_64__ -DUSE_SYSCALL_WRAPPER=1 -D__BPF_TRACING__ -DKBUILD_MODNAME=\"eshuffler\" \
 		-Wno-unused-value \
 		-Wno-pointer-sign \
@@ -23,14 +23,15 @@ build-bpf: ebpf/tc/*.h ebpf/xdp/*.h ebpf/main.c
 		-Iebpf/ \
 		-c -O2 -g -target bpf \
 		ebpf/main.c \
-		-o pkg/ebpf/bin/bpf.o
+		-o pkg/eshuffler/bin/bpf.o -ftime-trace 
+	llvm-objdump pkg/eshuffler/bin/bpf.o -d > pkg/eshuffler/bin/bpf.o.dump
 
 build-go: build-bpf
 	mkdir -p bin
 	go build -o bin/ ./cmd/*
 
 run:
-	source scripts/conf.sh && bash scripts/basic_test.sh
+	source scripts/setdir.sh && bash scripts/basic_test.sh
 
 clean:
 	rm -rf bin/

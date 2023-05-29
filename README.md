@@ -9,7 +9,7 @@ $ tree -L 1
 .
 ├── bin  		# 编译后的可执行文件	
 ├── cmd			# 若干个go主程序 (main.go)
-├── DEV.md		# 开发说明
+├── docs		# 开发文档
 ├── ebpf		# eBPF程序
 ├── go.mod		# go 工程文件
 ├── go.sum		# go 依赖库版本锁定
@@ -36,3 +36,7 @@ make
 $ sudo make run
 023/03/07 12:30:37 [LOG]             node-10627   [000] d.... 56291.786582: bpf_trace_printk: (classifier/one) new packet captured (TC)
 ```
+
+开发Notes:   
+ebpf-manager，头文件用CO-RE模式，只依赖生成的vmlinux.h，尽量不要依赖uapi。其他缺失的手动补全。
+https://www.yuque.com/fripside/rx1ngg/en0iczwsu3s5077y

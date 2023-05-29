@@ -1,0 +1,31 @@
+name: Go eBPF CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - uses: actions/setup-go@v3
+        with:
+          go-version: '1.19'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm
+          clang --version
+          llc --version
+
+      - name: Build example
+        working-directory: .
+        run: |
+          make

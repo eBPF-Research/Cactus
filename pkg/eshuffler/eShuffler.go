@@ -2,9 +2,10 @@ package eshuffler
 
 import (
 	"bytes"
-	"eBPF-Traffic-Shuffler/pkg/ebpf"
 	"fmt"
 	"time"
+
+	"github.com/cilium/ebpf"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/sirupsen/logrus"
@@ -14,23 +15,34 @@ type eShuffler struct {
 	manager        *manager.Manager
 	managerOptions manager.Options
 
-	mode      int
+	map_deploy_mode *ebpf.Map
+	map_xdp_stats   *ebpf.Map
+
+	options   ESOptions
 	startTime time.Time
 }
 
-func NeweShuffler() (*eShuffler, error) {
+func NeweShuffler(esOpt ESOptions) (*eShuffler, error) {
 	logrus.Debug("Loading eBPF")
 
 	es := &eShuffler{
-		managerOptions: ebpf.InitManagerOpt(),
-		manager:        ebpf.InitManager(),
+		managerOptions: manager.Options{},
+		manager:        &manager.Manager{},
+		options:        esOpt,
 	}
 
-	if err := es.manager.Init(bytes.NewReader(ebpf.ProbeTC)); err != nil {
+	es.loadEbpf()
+
+	if err := es.manager.InitWithOptions(bytes.NewReader(ProbeTC), es.managerOptions); err != nil {
 		return nil, fmt.Errorf("couldn't init ebpf-manager: %w", err)
 	}
 
 	return es, nil
+}
+
+type bpfDataRec struct {
+	Rx_packets uint64
+	Rx_bytes   uint64
 }
 
 func (es *eShuffler) Start() error {
@@ -41,6 +53,9 @@ func (es *eShuffler) Start() error {
 	}
 
 	es.startTime = time.Now()
+
+	es.getMaps()
+	go es.mapLog()
 
 	return nil
 }
@@ -53,8 +68,8 @@ func (es *eShuffler) Stop() error {
 	return nil
 }
 
-func IniteShuffler() (*eShuffler, error) {
-	es, err := NeweShuffler()
+func IniteShuffler(esOpt ESOptions) (*eShuffler, error) {
+	es, err := NeweShuffler(esOpt)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't creating eShuffler: %w", err)
 	}

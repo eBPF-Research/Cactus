@@ -20,7 +20,7 @@
 #pragma clang diagnostic ignored "-Wframe-address"
 
 
-#include "vmlinux_5_15_0.h"
+#include "vmlinux.h"
 #include "tc_xdp.h"
 
 #pragma clang diagnostic pop

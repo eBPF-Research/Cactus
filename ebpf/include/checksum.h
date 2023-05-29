@@ -55,7 +55,8 @@ u16 udp_csum(u32 saddr, u32 daddr, u32 len, u8 proto, u16 *udp_pkt, void* data_e
 	u32 cnt = 0;
 	u16* pkt = udp_pkt;
 
-	#pragma unroll
+	// profile发现，这个会让clang卡10s，因此不unroll直接让新版clang优化这种loop
+	// #pragma unroll
 	for (; cnt < 1500; cnt += 2) {
 		if (pkt + 1 > data_end || cnt + 2 > len) {
 			break;

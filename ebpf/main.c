@@ -6,6 +6,7 @@
 #include "tc/tc_padding.h"
 
 #include "xdp/xdp_op.h"
+#include "xdp/xdp_tail_call.h"
 
 
 #pragma clang diagnostic pop

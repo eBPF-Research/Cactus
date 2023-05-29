@@ -3,12 +3,16 @@
 ## eBPF需要的头文件 (include目录的文件)   
 从libbpf拉取的最新的头文件(支持CO-RE)：  
 ``` 
+cd include
 bash update.sh
 ```
 
 在自己电脑上生成vmlinux.h：  
 ```
 bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux_5_15_0.h
+
+# 建立一个软连接，方便修改版本
+ln -s vmlinux_5_15_0.h vmlinux.h
 ```
 
 全部加到all.h中。  

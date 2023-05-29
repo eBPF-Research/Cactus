@@ -3,4 +3,6 @@
 
 #define ALWAYS_INLINE __attribute__((always_inline))
 
+#define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" : "=r"(var))
+
 #endif

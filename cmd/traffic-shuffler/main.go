@@ -1,7 +1,6 @@
 package main
 
 import (
-	"eBPF-Traffic-Shuffler/pkg/ebpf"
 	es "eBPF-Traffic-Shuffler/pkg/eshuffler"
 	"os"
 	"os/signal"
@@ -10,8 +9,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func setupLogger(lev uint32) {
-	logrus.SetLevel(logrus.Level(lev))
+func setupLogger() {
+	if Verbose {
+		logrus.SetLevel(logrus.TraceLevel)
+	} else {
+		logrus.SetLevel(logrus.InfoLevel)
+	}
 	// logrus.SetReportCaller(true)
 	// logrus.SetFormatter(&logrus.TextFormatter{
 	// 	DisableColors: true,
@@ -19,22 +22,49 @@ func setupLogger(lev uint32) {
 	// })
 }
 
-func main() {
-	setupLogger(uint32(logrus.TraceLevel))
+func parseConf() es.ESOptions {
+	// flag.StringVar(&ConfFile, "file", "", "Set config file path")
+	// flag.StringVar(&ConfFile, "f", "", "Set config file path")
+	// flag.Parse()
 
-	eShuffler, err := es.IniteShuffler()
+	BasicConf.Execute()
+
+	if ConfFile == "" {
+		logrus.Infoln("Usage: eShuffule -f conf.yaml")
+		os.Exit(-1)
+	}
+
+	var esOption = es.ESOptions{}
+	es.CHECK_ERR(esOption.ReadOption(ConfFile), "Failed to parse yaml conf")
+	return esOption
+}
+
+func main() {
+	esOption := parseConf()
+
+	setupLogger()
+
+	eShuffler, err := es.IniteShuffler(esOption)
 	es.CHECK_ERR(err, "eShuller Init Failed!")
 
 	logrus.Infoln("eShuffler is now running (Ctrl + C to stop)\n")
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
+	// signal.Notify(stopper, os.Kill, syscall.SIGKILL)
 
-	go func() {
+	waitForExit := func() {
 		<-stopper
 		eShuffler.Stop()
 		logrus.Infoln("eShuffler Exit!-With Ctrl-C!")
 		os.Exit(0)
-	}()
+	}
 
-	ebpf.DumpBPFLog()
+	if Verbose {
+		go waitForExit()
+
+		// blocking
+		es.DumpBPFLog()
+	} else {
+		waitForExit()
+	}
 }
