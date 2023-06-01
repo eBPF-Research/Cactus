@@ -17,6 +17,7 @@ type eShuffler struct {
 
 	map_deploy_mode *ebpf.Map
 	map_xdp_stats   *ebpf.Map
+	map_op_stats    *ebpf.Map
 
 	options   ESOptions
 	startTime time.Time

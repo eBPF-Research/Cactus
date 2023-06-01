@@ -8,7 +8,8 @@
 #ifndef _ALL_H__
 #define _ALL_H__
 
-#define USE_CO_RE
+// 当前禁用 CO-RE
+// #define USE_CO_RE
 #ifdef USE_CO_RE
 
 #pragma clang diagnostic push
@@ -21,7 +22,7 @@
 
 
 #include "vmlinux.h"
-#include "tc_xdp.h"
+#include "tc_xdp_co_re.h"
 
 #pragma clang diagnostic pop
 
@@ -30,6 +31,7 @@
 #endif // USE_CO_RE
 
 #include "bpf_core_read.h"
+#include "bpf_endian.h"
 #include "bpf_helpers.h"
 #include "bpf_tracing.h"
 #include <errno.h>

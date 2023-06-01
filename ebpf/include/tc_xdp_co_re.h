@@ -1,7 +1,6 @@
 #ifndef _TC_H_
 #define _TC_H_
 
-#include "vmlinux.h"
 #include "bpf_helpers.h"
 
 // https://elixir.bootlin.com/linux/v5.3.8/source/include/uapi/linux/if_ether.h#L71

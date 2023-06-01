@@ -19,16 +19,7 @@
 #ifndef __PARSING_HELPERS_H
 #define __PARSING_HELPERS_H
 
-#include "tc_xdp.h"
-#include "bpf_endian.h"
-// #include <linux/if_ether.h>
-// #include <linux/if_packet.h>
-// #include <linux/ip.h>
-// #include <linux/ipv6.h>
-// #include <linux/icmp.h>
-// #include <linux/icmpv6.h>
-// #include <linux/udp.h>
-// #include <linux/tcp.h>
+#include "include/all.h"
 
 /* Header cursor to keep track of current parsing position */
 struct hdr_cursor {
@@ -70,6 +61,65 @@ static __always_inline int proto_is_vlan(__u16 h_proto)
 {
 	return !!(h_proto == bpf_htons(ETH_P_8021Q) ||
 		  h_proto == bpf_htons(ETH_P_8021AD));
+}
+
+static __always_inline int my_parse_ethhdr_vlan(struct hdr_cursor *nh,
+					     void *data_end,
+					     struct ethhdr **ethhdr,
+					     struct collect_vlans *vlans)
+{
+		struct ethhdr *eth = nh->pos;
+	int hdrsize = sizeof(*eth);
+	struct vlan_hdr *vlh;
+	__u16 h_proto;
+
+
+	/* Byte-count bounds check; check if current pointer + size of header
+	 * is after data_end.
+	 */
+	if (nh->pos + hdrsize > data_end)
+		return -1;
+
+	nh->pos += hdrsize;
+	*ethhdr = eth;
+	vlh = nh->pos;
+	h_proto = eth->h_proto;
+
+	if (proto_is_vlan(h_proto)) {
+		if (vlh + 1 > data_end)
+			goto end;
+
+		h_proto = vlh->h_vlan_encapsulated_proto;
+		vlh++;
+	}
+
+	if (proto_is_vlan(h_proto)) {
+		if (vlh + 1 > data_end)
+			goto end;
+
+		h_proto = vlh->h_vlan_encapsulated_proto;
+		vlh++;
+	}
+
+	// #pragma clang loop unroll(full)
+	// for (int i = 0; i < VLAN_MAX_DEPTH; i++) {
+	// 	if (!proto_is_vlan(h_proto))
+	// 		break;
+
+	// 	if (vlh + 1 > data_end)
+	// 		break;
+
+	// 	h_proto = vlh->h_vlan_encapsulated_proto;
+	// 	if (vlans) /* collect VLAN ids */
+	// 		vlans->id[i] =
+	// 			(bpf_ntohs(vlh->h_vlan_TCI) & VLAN_VID_MASK);
+
+	// 	vlh++;
+	// }
+
+end:
+	nh->pos = vlh;
+	return h_proto; /* network-byte-order */
 }
 
 /* Notice, parse_ethhdr() will skip VLAN tags, by advancing nh->pos and returns
@@ -127,7 +177,8 @@ static __always_inline int parse_ethhdr(struct hdr_cursor *nh,
 					struct ethhdr **ethhdr)
 {
 	/* Expect compiler removes the code that collects VLAN ids */
-	return parse_ethhdr_vlan(nh, data_end, ethhdr, NULL);
+	return my_parse_ethhdr_vlan(nh, data_end, ethhdr, NULL);
+	// return parse_ethhdr_vlan(nh, data_end, ethhdr, NULL);
 }
 
 static __always_inline int parse_ip6hdr(struct hdr_cursor *nh,

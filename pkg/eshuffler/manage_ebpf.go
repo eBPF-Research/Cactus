@@ -11,73 +11,9 @@ import (
 //go:embed bin/bpf.o
 var ProbeTC []byte
 
-const (
-	MODE_OP1 = 0b1
-	MODE_OP2 = 0b10
-	MODE_OP3 = 0b100
-	MODE_OP4 = 0b1000
-	MODE_OP5 = 0b10000
-	MODE_OP6 = 0b100000
-)
-
-var mode_index = map[int]int{
-	MODE_OP1: 1,
-	MODE_OP2: 2,
-	MODE_OP3: 3,
-	MODE_OP4: 4,
-	MODE_OP5: 5,
-	MODE_OP6: 6,
-}
-
-var mode_func = map[int]string{
-	MODE_OP1: "",
-	MODE_OP2: "xdp_op2_dummy_packet",
-	MODE_OP3: "",
-	MODE_OP4: "xdp_op4_random_drop",
-	MODE_OP5: "xdp_op5_partial_upload",
-	MODE_OP6: "",
-}
-
-func IndexOf[T comparable](collection []T, el T) int {
-	for i, x := range collection {
-		if x == el {
-			return i
-		}
-	}
-	return -1
-}
-
 // https://github.com/Gui774ume/krie/blob/master/pkg/krie/events/events.go#L37
 // https://github.com/Gui774ume/krie/blob/master/pkg/krie/manager.go
 // https://github.com/DataDog/ebpf-manager/blob/main/examples/program_router/main.go
-
-func InitManagerOpt() manager.Options {
-	return manager.Options{
-		TailCallRouter: []manager.TailCallRoute{
-			{
-				ProgArrayName: "xdp_jump_table",
-				Key:           uint32(1),
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "xdp_random_drop_func",
-				},
-			},
-			{
-				ProgArrayName: "xdp_jump_table",
-				Key:           uint32(2),
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "xdp_partial_upload_func",
-				},
-			},
-			{
-				ProgArrayName: "xdp_jump_table",
-				Key:           uint32(3),
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "xdp_dummy_packet_func",
-				},
-			},
-		},
-	}
-}
 
 func (es *eShuffler) loadEbpf() {
 
@@ -101,9 +37,11 @@ func (es *eShuffler) getMaps() error {
 	es.map_deploy_mode, _, err = es.manager.GetMap("xdp_jump_table")
 	if err != nil {
 		return fmt.Errorf("couldn't find maps/xdp_prog_array: %w", err)
-	} else {
-		// tail.Update(uint32(1), uint32(2), 0)
-		//fmt.Printf("tail: %v\n", tail)
+	}
+
+	es.map_op_stats, _, err = es.manager.GetMap("xdp_op_stats")
+	if err != nil {
+		return fmt.Errorf("couldn't find maps/xdp_op_stats: %w", err)
 	}
 
 	return err
@@ -192,11 +130,21 @@ func (es *eShuffler) addXDPProg() {
 }
 
 func (es *eShuffler) editeBPFConstants() {
+	op_num, op_mode := es.options.GetMode()
 	constants := []manager.ConstantEditor{
 		{
-			Name:  "opt_belta",
+			Name:  "opt_delta",
 			Value: uint64(es.options.Beta * 100),
 		},
+	}
+	// 只启用一种算法，用于评测
+	if op_num == 1 {
+		op_index := mode_index[op_mode]
+		constants = append(constants, manager.ConstantEditor{
+			Name:  "one_op",
+			Value: uint64(op_index),
+		})
+		logrus.Infof("Only use one op: %d", op_index)
 	}
 	es.managerOptions.ConstantEditors = append(es.managerOptions.ConstantEditors, constants...)
 }

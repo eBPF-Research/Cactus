@@ -1,12 +1,20 @@
 #ifndef XDP_OP_H_
 #define XDP_OP_H_
 
-#include "include/checksum.h"
-#include "include/parsing_helpers.h"
+#include "net/checksum.h"
+#include "net/parsing_helpers.h"
 #include "xdp_states.h"
 
 
 #define PERCENT(x) (__UINT32_MAX__ / 100 * (x))
+
+#define COPY_MAC(dst, src) \
+	dst[0] = src[0]; \
+	dst[1] = src[1]; \
+	dst[2] = src[2]; \
+	dst[3] = src[3]; \
+	dst[4] = src[4]; \
+	dst[5] = src[5];
 
 static __always_inline bool roll(u32 percentile) {
 	u32 rand_u = bpf_get_prandom_u32() % 100 + 1;
@@ -28,15 +36,6 @@ static __always_inline u16 modify_csuml(u16 csum, u32 old, u32 new) {
 	return from32to16(tmp);
 }
 
-SEC("xdp/ingress")
-int ingress(struct xdp_md *ctx) {
-	u64 p;
-	LOAD_CONSTANT("opt_belta", p);
-	bpf_printk("new packet captured (XDP): %u", p);
-	return xdp_stats_record_action(ctx, XDP_PASS);
-};
-
-
 // OP-2
 // execute the following command first
 // sysctl -w net.ipv4.ip_forward=1
@@ -53,6 +52,13 @@ int xdp_op2_dummy_packet(struct xdp_md *ctx) {
 	int eth_type;
 	int ip_type;
 	int tcp_len;
+
+	// 只开启一种算法
+	int one_op = use_one_op();
+	if (one_op) {
+		xdp_stats_record_op(ctx, XDP_OP_DEFAULT);	
+		// bpf_printk("choose op: %d %d\n", one_op, __LINE__);
+	}
 
 	nh.pos = data;
 	u32 p = get_belta_p();
@@ -99,9 +105,14 @@ int xdp_op2_dummy_packet(struct xdp_md *ctx) {
 			int rc = bpf_fib_lookup(ctx, &fib_params, sizeof(fib_params), 0);
 			switch (rc) {
 			case BPF_FIB_LKUP_RET_SUCCESS:         /* lookup successful */
+				// COPY_MAC(eth->h_dest, fib_params.dmac);
+				// COPY_MAC(eth->h_source, fib_params.smac);
+				// 为了过verifier，只能加一行对h_dest的修改
+				eth->h_dest[0] = fib_params.dmac[0];
 				__builtin_memcpy(eth->h_dest, fib_params.dmac, ETH_ALEN);
 				__builtin_memcpy(eth->h_source, fib_params.smac, ETH_ALEN);
 				action = bpf_redirect(fib_params.ifindex, 0);
+				xdp_stats_record_op(ctx, XDP_OP_2);
 				break;
 			case BPF_FIB_LKUP_RET_BLACKHOLE:    /* dest is blackholed; can be dropped */
 			case BPF_FIB_LKUP_RET_UNREACHABLE:  /* dest is unreachable; can be dropped */
@@ -129,12 +140,19 @@ SEC("xdp/random_drop")
 int xdp_op4_random_drop(struct xdp_md *ctx) {
 	u32 action = XDP_PASS;
 
+	// 只开启一种算法
+	int one_op = use_one_op();
+	if (one_op) {
+		xdp_stats_record_op(ctx, XDP_OP_DEFAULT);	
+	}
+
 	u32 p = get_belta_p();	
 	
 	if (roll(p)) {
 		action = XDP_DROP;
 	}
 
+	xdp_stats_record_op(ctx, XDP_OP_4);
 	return xdp_stats_record_action(ctx, action);
 }
 
@@ -153,8 +171,15 @@ int xdp_op5_partial_upload(struct xdp_md *ctx) {
 	int tcp_len;
 
 	nh.pos = data;
-	u32 p = get_belta_p();
 
+	// 只开启一种算法
+	int one_op = use_one_op();
+	if (one_op) {
+		xdp_stats_record_op(ctx, XDP_OP_DEFAULT);	
+	}
+
+	u32 p = get_belta_p();
+	
 	eth_type = parse_ethhdr(&nh, data_end, &eth);
 	if (eth_type == bpf_htons(ETH_P_IP)) {
 		ip_type = parse_iphdr(&nh, data_end, &iphdr);
@@ -188,6 +213,7 @@ int xdp_op5_partial_upload(struct xdp_md *ctx) {
 				action = XDP_ABORTED;
 				goto out;
 			}
+			xdp_stats_record_op(ctx, XDP_OP_5);
 			goto out;
 		}
 	}

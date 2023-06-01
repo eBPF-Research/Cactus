@@ -15,7 +15,12 @@ bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux_5_15_0.h
 ln -s vmlinux_5_15_0.h vmlinux.h
 ```
 
-全部加到all.h中。  
+## 头文件引用说明
+include中全部加到all.h了，因此外部的只需要引用all.h
 
-## 启用CO-RE功能  
+### 启用CO-RE功能  
 为了兼容不同kernel。所以用vm_linux.h，而不是用uapi.h。因此缺少的定义需要自己去重新定义。
+目前CO-RE下都定义在tc_xdp_co_re.h中。  
+
+
+### 不用CO-RE

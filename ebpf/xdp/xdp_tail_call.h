@@ -3,6 +3,7 @@
 
 #include "include/all.h"
 #include "xdp_states.h"
+#include <stdbool.h>
 
 // struct {
 // 	__uint(type, BPF_MAP_TYPE_PROG_ARRAY);
@@ -38,11 +39,40 @@ struct bpf_map_def SEC("maps/xdp_jump_table") xdp_jump_table = {
 // 	return XDP_PASS;
 // }
 
+SEC("xdp/ingress")
+int ingress(struct xdp_md *ctx) {
+	u32 p = get_belta_p();
+	// LOAD_CONSTANT("opt_delta", p);
+	bpf_printk("new packet captured (XDP): %u\n", p);
+	// return xdp_stats_record_action(ctx, XDP_PASS);
+	return XDP_PASS;
+};
+
+static __always_inline 
+bool is_ack_packet(struct xdp_md *ctx) {
+	
+	return false;
+}
+
 SEC("xdp/dispatch")
 int xdp_dispatch(struct xdp_md *ctx) {
 	int t = bpf_get_prandom_u32() % 3;
+	// int one_op = use_one_op();
 
-	bpf_tail_call(ctx, &xdp_jump_table, t);
+	// bpf_printk("choose op: %d\n", one_op);
+
+	xdp_stats_record_op(ctx, XDP_OP_DEFAULT);
+	int jump = 0;
+	if (t == 0) {
+		jump = XDP_OP_2;
+	} else if (t == 1) {
+		jump = XDP_OP_4;
+	} else if (t == 2) {
+		jump = XDP_OP_5;
+	}
+	if (jump != 0) {
+		bpf_tail_call(ctx, &xdp_jump_table, jump);
+	}
 	return XDP_PASS;
 }
 

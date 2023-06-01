@@ -10,4 +10,4 @@ beta: 0.3
 # op-4: 0b001000 random drop
 # op-5: 0b010000 partial upload
 # 0b11111111
-# beta * 100 = precent
+# beta * 100 = trigger rate

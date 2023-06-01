@@ -14,6 +14,7 @@ struct datarec {
 #endif
 
 enum XDPop{
+	XDP_OP_DEFAULT = 0,
 	XDP_OP_1 = 1,
 	XDP_OP_2,
 	XDP_OP_3,
@@ -34,13 +35,6 @@ struct bpf_map_def SEC("maps/xdp_action_stats") xdp_action_stats = {
 	.max_entries = XDP_ACTION_MAX,
 };
 
-struct bpf_map_def SEC("maps/xdp_op_stats") xdp_op_stats = {
-	.type        = BPF_MAP_TYPE_ARRAY,
-	.key_size    = sizeof(__u32),
-	.value_size  = sizeof(__u32),
-	.max_entries = XDP_OP_END,
-};
-
 // struct {
 // 	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
 // 	__uint(max_entries, XDP_ACTION_MAX);
@@ -48,8 +42,21 @@ struct bpf_map_def SEC("maps/xdp_op_stats") xdp_op_stats = {
 // 	__type(value, struct datarec);
 // } xdp_stats_map SEC("maps/xdp_stats_map");
 
+struct bpf_map_def SEC("maps/xdp_op_stats") xdp_op_stats = {
+	.type        = BPF_MAP_TYPE_ARRAY,
+	.key_size    = sizeof(__u32),
+	.value_size  = sizeof(__u32),
+	.max_entries = XDP_OP_END + 1,
+};
+
+// #define USE_XDP_ACTION_LOG
+
 static __always_inline
 __u32 xdp_stats_record_action(struct xdp_md *ctx, __u32 action) {
+#ifndef USE_XDP_ACTION_LOG
+	return action;
+#endif
+
 	if (action >= XDP_ACTION_MAX)
 		return XDP_ABORTED;
 
@@ -69,6 +76,19 @@ __u32 xdp_stats_record_action(struct xdp_md *ctx, __u32 action) {
 }
 
 static __always_inline
+void xdp_stats_record_op(struct xdp_md *ctx, __u32 op) {
+	if (op >= XDP_OP_END)
+		return;
+
+	/* Lookup in kernel BPF-side return pointer to actual data record */
+	__u32 *rec = bpf_map_lookup_elem(&xdp_op_stats, &op);
+	if (!rec)
+		return;
+
+	*rec += 1;
+}
+
+static __always_inline
 u32 get_alpha_p() {
 	return 0;
 }
@@ -77,10 +97,17 @@ u32 get_alpha_p() {
 */
 static __always_inline
 u32 get_belta_p() {
-	u64 belta_p;
-	LOAD_CONSTANT("opt_belta", belta_p);
+	u64 belta_p = 12;
+	LOAD_CONSTANT("opt_delta", belta_p);
 	return belta_p;
 }
 
+
+static __always_inline
+u32 use_one_op() {
+	u64 one_op = 0;
+	LOAD_CONSTANT("one_op", one_op);
+	return one_op;
+}
 
 #endif
