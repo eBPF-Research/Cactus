@@ -3,10 +3,10 @@
 
 #include "include/all.h"
 
-SEC("classifier/one")
-int one(struct __sk_buff *skb)
+SEC("tc/classifier/ingress_redirect")
+int ingress_redirect(struct __sk_buff *skb)
 {
-	bpf_printk("(classifier/one) new packet captured (TC)");
+	bpf_printk("(classifier/ingress_redirect) new packet captured (TC)");
 
 	// Tail call
 	// int key = TAIL_CALL_KEY;

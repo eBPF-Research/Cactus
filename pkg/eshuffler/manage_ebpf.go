@@ -17,7 +17,7 @@ var ProbeTC []byte
 
 func (es *eShuffler) loadEbpf() {
 
-	// use single mode or use all
+	// use single op or use all ops
 	es.addXDPProg()
 	// es.addTestProg()
 
@@ -48,16 +48,25 @@ func (es *eShuffler) getMaps() error {
 }
 
 func (es *eShuffler) addTestProg() {
-	var xdp_probe = &manager.Probe{
+	// var xdp_probe = &manager.Probe{
+	// 	ProbeIdentificationPair: manager.ProbeIdentificationPair{
+	// 		EBPFFuncName: "ingress",
+	// 	},
+	// 	// ip a # second inf
+	// 	IfName: es.options.NetInf,
+	// 	// IfIndex:       2, // change this to the interface index connected to the internet
+	// 	XDPAttachMode: manager.XdpAttachModeSkb,
+	// }
+
+	var tc_probe = &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFFuncName: "ingress",
+			EBPFFuncName: "ingress_redirect",
 		},
-		// ip a # second inf
-		IfName: es.options.NetInf,
-		// IfIndex:       2, // change this to the interface index connected to the internet
-		XDPAttachMode: manager.XdpAttachModeSkb,
+		IfName:           es.options.NetInf,
+		NetworkDirection: manager.Egress,
 	}
-	es.manager.Probes = append(es.manager.Probes, xdp_probe)
+	// es.manager.Probes = append(es.manager.Probes, xdp_probe)
+	es.manager.Probes = append(es.manager.Probes, tc_probe)
 }
 
 func (es *eShuffler) addXDPProg() {
@@ -133,8 +142,8 @@ func (es *eShuffler) editeBPFConstants() {
 	op_num, op_mode := es.options.GetMode()
 	constants := []manager.ConstantEditor{
 		{
-			Name:  "opt_delta",
-			Value: uint64(es.options.Beta * 100),
+			Name:  "opt_alpha",
+			Value: uint64(es.options.Alpha * 100),
 		},
 	}
 	// 只启用一种算法，用于评测

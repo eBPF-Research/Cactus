@@ -27,6 +27,7 @@
 #pragma clang diagnostic pop
 
 #else
+// not use CO-RE， import kernel head from uapi and linux headers
 #include "kernel.h"
 #endif // USE_CO_RE
 

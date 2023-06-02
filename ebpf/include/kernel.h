@@ -20,7 +20,9 @@
 // #include <uapi/linux/ptrace.h>
 // #include <uapi/linux/bpf_perf_event.h>
 
+#ifndef KBUILD_MODNAME
 #define KBUILD_MODNAME "test"
+#endif
 
 // XDP and TC
 #include <linux/if_ether.h>

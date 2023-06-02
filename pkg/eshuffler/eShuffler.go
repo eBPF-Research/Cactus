@@ -41,11 +41,6 @@ func NeweShuffler(esOpt ESOptions) (*eShuffler, error) {
 	return es, nil
 }
 
-type bpfDataRec struct {
-	Rx_packets uint64
-	Rx_bytes   uint64
-}
-
 func (es *eShuffler) Start() error {
 
 	// start the manager

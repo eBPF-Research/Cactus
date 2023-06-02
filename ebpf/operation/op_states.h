@@ -19,8 +19,6 @@ enum XDPop{
 	XDP_OP_2,
 	XDP_OP_3,
 	XDP_OP_4,
-	XDP_OP_5,
-	XDP_OP_6,
 	XDP_OP_END
 };
 
@@ -48,6 +46,17 @@ struct bpf_map_def SEC("maps/xdp_op_stats") xdp_op_stats = {
 	.value_size  = sizeof(__u32),
 	.max_entries = XDP_OP_END + 1,
 };
+
+static __always_inline bool roll(u32 percentile) {
+	u32 rand_u = bpf_get_prandom_u32() % 100 + 1;
+	// u32 thresh = PERCENT(percentile);
+	// return rand_u < thresh;
+	return rand_u <= percentile;
+}
+
+static __always_inline u32 rand_n(u32 N) {
+	return bpf_get_prandom_u32() % N;
+}
 
 // #define USE_XDP_ACTION_LOG
 
@@ -88,21 +97,17 @@ void xdp_stats_record_op(struct xdp_md *ctx, __u32 op) {
 	*rec += 1;
 }
 
-static __always_inline
-u32 get_alpha_p() {
-	return 0;
-}
-
 /* Todo: 后面改成公式计算，从map中读取
 */
 static __always_inline
-u32 get_belta_p() {
-	u64 belta_p = 12;
-	LOAD_CONSTANT("opt_delta", belta_p);
-	return belta_p;
+u32 get_alpha_precent() {
+	u64 alpha_p = 12;
+	LOAD_CONSTANT("opt_alpha", alpha_p);
+	return alpha_p;
 }
 
-
+/* 不用tail call，只开启一种算法，用于评估单独op的效果
+*/
 static __always_inline
 u32 use_one_op() {
 	u64 one_op = 0;

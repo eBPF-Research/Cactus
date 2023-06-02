@@ -2,11 +2,9 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-but-set-variable"
 
-#include "tc/tc_drop.h"
-#include "tc/tc_padding.h"
-
-#include "xdp/xdp_op.h"
-#include "xdp/xdp_tail_call.h"
+#include "operation/tc_op.h"
+#include "operation/xdp_op.h"
+#include "operation/op_dispatch.h"
 
 
 #pragma clang diagnostic pop

@@ -12,11 +12,11 @@ type ESOptions struct {
 	Mode int `yaml:"mode"`
 
 	// network interface
-	NetInf   string `yaml:"net_inf"`
-	InfIndex int    `yaml:"inf_index"`
+	NetInf string `yaml:"net_inf"`
+	// InfIndex int    `yaml:"inf_index"` // 填网卡名字就行
 
 	Alpha float32 `yaml:"alpha"`
-	Beta  float32 `yaml:"beta"`
+	// Beta  float32 `yaml:"beta"`
 }
 
 const (
@@ -24,8 +24,6 @@ const (
 	MODE_OP2 = 0b10
 	MODE_OP3 = 0b100
 	MODE_OP4 = 0b1000
-	MODE_OP5 = 0b10000
-	MODE_OP6 = 0b100000
 )
 
 var mode_index = map[int]int{
@@ -33,17 +31,13 @@ var mode_index = map[int]int{
 	MODE_OP2: 2,
 	MODE_OP3: 3,
 	MODE_OP4: 4,
-	MODE_OP5: 5,
-	MODE_OP6: 6,
 }
 
 var mode_func = map[int]string{
-	MODE_OP1: "",
-	MODE_OP2: "xdp_op2_dummy_packet",
-	MODE_OP3: "",
-	MODE_OP4: "xdp_op4_random_drop",
-	MODE_OP5: "xdp_op5_partial_upload",
-	MODE_OP6: "",
+	MODE_OP1: "xdp_op1_dummy_packet",
+	MODE_OP2: "", // packet fragment
+	MODE_OP3: "xdp_op3_partial_upload",
+	MODE_OP4: "", // xdp_op4_windows_size
 }
 
 func (opt *ESOptions) ReadOption(fi string) error {
@@ -59,7 +53,7 @@ func (opt *ESOptions) ReadOption(fi string) error {
 		return fmt.Errorf("couldn't decode config file %s: %w", fi, err)
 	}
 
-	logrus.Infof("Use Options mode: %b Inf: %s α: %f β: %f", opt.Mode, opt.NetInf, opt.Alpha, opt.Beta)
+	logrus.Infof("Use Options mode: %b Inf: %s α: %f", opt.Mode, opt.NetInf, opt.Alpha)
 	return err
 }
 

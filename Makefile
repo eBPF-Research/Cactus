@@ -44,7 +44,7 @@ CLANG_CMD := $(CLANG) $(CLANG_FLAGS) \
 
 LLC_CMD := $(LLC) -march=bpf -filetype=obj
 
-build-bpf: ebpf/tc/*.h ebpf/xdp/*.h ebpf/main.c
+build-bpf: ebpf/operation/*.h ebpf/main.c
 	mkdir -p pkg/eshuffler/bin
 	$(CLANG_CMD) ebpf/main.c -c -o - | $(LLC_CMD) -o pkg/eshuffler/bin/bpf.o
 	llvm-objdump pkg/eshuffler/bin/bpf.o -d -S > pkg/eshuffler/bin/bpf.o.dump

@@ -12,9 +12,6 @@ import (
 
 func (es *eShuffler) mapLog() {
 	var tick uint32 = 0
-	if es.map_xdp_stats == nil {
-		return
-	}
 	logrus.Info("Start Op Log:")
 	for {
 		tick++
@@ -24,10 +21,19 @@ func (es *eShuffler) mapLog() {
 	}
 }
 
+type bpfDataRec struct {
+	Rx_packets uint64
+	Rx_bytes   uint64
+}
+
 func xdpStats(tick uint32, es *eShuffler) {
 	var tags = []string{"XDP_ABORTED", "XDP_DROP", "XDP_PASS", "XDP_TX", "XDP_REDIRECT"}
 	var key uint32
 	var val bpfDataRec
+
+	if es.map_xdp_stats == nil {
+		return
+	}
 
 	key = tick % uint32(len(tags))
 	if err := es.map_xdp_stats.Lookup(&key, &val); err == nil {
@@ -42,17 +48,23 @@ func opStats(tick uint32, es *eShuffler) {
 	var key uint32
 	var val uint32
 
-	var index = []uint32{2, 4, 5}
+	var index = []uint32{1, 3}
+
+	// alternately show all ops status
 	key = tick % uint32(len(index))
-	var tags = []string{mode_func[MODE_OP2], mode_func[MODE_OP4], mode_func[MODE_OP5]}
+	var tags = []string{mode_func[MODE_OP1], mode_func[MODE_OP3]}
 	var op_key = index[key]
 	var tag = tags[key]
 
+	// show one op status if only one op is enabeld
 	op_num, mode := es.options.GetMode()
-	// show only one mode
 	if op_num == 1 {
 		op_key = uint32(mode_index[mode])
 		tag = mode_func[mode]
+	}
+
+	if es.map_op_stats == nil {
+		return
 	}
 
 	var all uint32 = 0
