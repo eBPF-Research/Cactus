@@ -51,7 +51,7 @@ func (es *eShuffler) Start() error {
 	es.startTime = time.Now()
 
 	es.getMaps()
-	go es.mapLog()
+	// go es.mapLog()
 
 	return nil
 }

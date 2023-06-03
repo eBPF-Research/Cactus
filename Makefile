@@ -2,7 +2,7 @@
 all: build-go
 .PHONY: clean
 
-CLANG := clang-14
+CLANG := clang
 SHELL := /bin/bash
 SRCARCH := x86
 

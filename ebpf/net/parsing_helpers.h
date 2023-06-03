@@ -26,15 +26,15 @@ struct hdr_cursor {
 	void *pos;
 };
 
-// /*
-//  *	struct vlan_hdr - vlan header
-//  *	@h_vlan_TCI: priority and VLAN ID
-//  *	@h_vlan_encapsulated_proto: packet type ID or len
-//  */
-// struct vlan_hdr {
-// 	__be16	h_vlan_TCI;
-// 	__be16	h_vlan_encapsulated_proto;
-// };
+/*
+ *	struct vlan_hdr - vlan header
+ *	@h_vlan_TCI: priority and VLAN ID
+ *	@h_vlan_encapsulated_proto: packet type ID or len
+ */
+struct vlan_hdr {
+	__be16	h_vlan_TCI;
+	__be16	h_vlan_encapsulated_proto;
+};
 
 /*
  * Struct icmphdr_common represents the common part of the icmphdr and icmp6hdr

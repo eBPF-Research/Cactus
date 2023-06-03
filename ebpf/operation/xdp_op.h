@@ -16,19 +16,6 @@
 	dst[4] = src[4]; \
 	dst[5] = src[5];
 
-static __always_inline u16 modify_csums(u16 csum, u16 old, u16 new) {
-	u32 tmp = csum;
-	tmp += old;
-	tmp += (~new & 0xffff);
-	return from32to16(tmp);
-}
-
-static __always_inline u16 modify_csuml(u16 csum, u32 old, u32 new) {
-	u32 tmp = csum;
-	tmp += (old & 0xffff) + (old >> 16) + (~new & 0xffff) + (~new >> 16);
-	return from32to16(tmp);
-}
-
 // OP-1
 // execute the following command first
 // sysctl -w net.ipv4.ip_forward=1

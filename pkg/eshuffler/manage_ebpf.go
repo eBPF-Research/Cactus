@@ -17,9 +17,9 @@ var ProbeTC []byte
 
 func (es *eShuffler) loadEbpf() {
 
-	// use single op or use all ops
-	es.addXDPProg()
-	// es.addTestProg()
+	// use single mode or use all
+	// es.addXDPProg()
+	es.addTestProg()
 
 	es.editeBPFConstants()
 
@@ -60,10 +60,10 @@ func (es *eShuffler) addTestProg() {
 
 	var tc_probe = &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFFuncName: "ingress_redirect",
+			EBPFFuncName: "dummy_tc",
 		},
 		IfName:           es.options.NetInf,
-		NetworkDirection: manager.Egress,
+		NetworkDirection: manager.Ingress,
 	}
 	// es.manager.Probes = append(es.manager.Probes, xdp_probe)
 	es.manager.Probes = append(es.manager.Probes, tc_probe)

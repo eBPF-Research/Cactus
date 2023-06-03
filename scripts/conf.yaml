@@ -1,5 +1,5 @@
 
-net_inf: eth0
+net_inf: ens34
 mode: 0b1111
 alpha: 0.2
 
