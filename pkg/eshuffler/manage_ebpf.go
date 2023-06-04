@@ -60,7 +60,7 @@ func (es *eShuffler) addTestProg() {
 
 	var tc_probe = &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFFuncName: "dummy_tc",
+			EBPFFuncName: "dummy_seq",
 		},
 		IfName:           es.options.NetInf,
 		NetworkDirection: manager.Ingress,
