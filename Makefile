@@ -2,7 +2,7 @@
 all: build-go
 .PHONY: clean
 
-CLANG := clang-14
+CLANG := clang
 SHELL := /bin/bash
 SRCARCH := x86
 
@@ -57,4 +57,5 @@ run:
 	source scripts/setdir.sh && bash scripts/basic_test.sh
 
 clean:
+	go clean -cache
 	rm -rf bin/

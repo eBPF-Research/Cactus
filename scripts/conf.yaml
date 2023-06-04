@@ -1,16 +1,15 @@
 
 net_inf: eth0
-mode: 0b1111
-alpha: 0.2
+mode: 0
+# use_op: 1
+alpha: 0.02
+
 
 # -------------------
 # inf_index: 1
-# mode 用位表示, 当前可用模式。可单独开启一种，也可都开
-# op-1: 0b0001 dummy
-# op-2: 0b0010 random drop
-# op-3: 0b0100 partial upload
-# op-4: 0b1000 
-# all: 0b1111
+# mode 0: use all ops
+# mode 1: use one op (use_op)
+#   use_op = 1..4
 
 # 目前 alpha 直接就是触发概率
 # alpha * 100 = trigger rate

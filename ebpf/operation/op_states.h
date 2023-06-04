@@ -13,13 +13,14 @@ struct datarec {
 #define XDP_ACTION_MAX (XDP_REDIRECT + 1)
 #endif
 
-enum XDPop{
-	XDP_OP_DEFAULT = 0,
-	XDP_OP_1 = 1,
-	XDP_OP_2,
-	XDP_OP_3,
-	XDP_OP_4,
-	XDP_OP_END
+enum EBPFOp{
+	ES_OP_ALL_PKT = 0,
+	ES_OP1_1_TC,
+	ES_OP1_2_TC,
+	ES_OP2_TC,
+	ES_OP3_XDP,
+	ES_OP4_TC,   // 5
+	ES_OP_POS_END
 };
 
 // 根据最新libbpf来修改：
@@ -40,11 +41,11 @@ struct bpf_map_def SEC("maps/xdp_action_stats") xdp_action_stats = {
 // 	__type(value, struct datarec);
 // } xdp_stats_map SEC("maps/xdp_stats_map");
 
-struct bpf_map_def SEC("maps/xdp_op_stats") xdp_op_stats = {
+struct bpf_map_def SEC("maps/es_op_stats") es_op_stats = {
 	.type        = BPF_MAP_TYPE_ARRAY,
 	.key_size    = sizeof(__u32),
 	.value_size  = sizeof(__u32),
-	.max_entries = XDP_OP_END + 1,
+	.max_entries = ES_OP_POS_END + 1,
 };
 
 static __always_inline bool roll(u32 percentile) {
@@ -85,12 +86,12 @@ __u32 xdp_stats_record_action(struct xdp_md *ctx, __u32 action) {
 }
 
 static __always_inline
-void xdp_stats_record_op(struct xdp_md *ctx, __u32 op) {
-	if (op >= XDP_OP_END)
+void es_stats_record_op(__u32 op) {
+	if (op >= ES_OP_POS_END)
 		return;
 
 	/* Lookup in kernel BPF-side return pointer to actual data record */
-	__u32 *rec = bpf_map_lookup_elem(&xdp_op_stats, &op);
+	__u32 *rec = bpf_map_lookup_elem(&es_op_stats, &op);
 	if (!rec)
 		return;
 
@@ -113,6 +114,17 @@ u32 use_one_op() {
 	u64 one_op = 0;
 	LOAD_CONSTANT("one_op", one_op);
 	return one_op;
+}
+
+static __always_inline
+void es_stats_one_op_mode() {
+	/* if only one op is loaded, 
+	 	pkt should be statisticed in individual function
+	*/
+	int one_op = use_one_op();
+	if (one_op) {
+		es_stats_record_op(ES_OP_ALL_PKT);	
+	}
 }
 
 #endif

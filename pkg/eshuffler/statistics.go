@@ -48,25 +48,29 @@ func opStats(tick uint32, es *eShuffler) {
 	var key uint32
 	var val uint32
 
-	var index = []uint32{1, 3}
-
-	// alternately show all ops status
-	key = tick % uint32(len(index))
-	var tags = []string{mode_func[MODE_OP1], mode_func[MODE_OP3]}
-	var op_key = index[key]
-	var tag = tags[key]
-
-	// show one op status if only one op is enabeld
-	op_num, mode := es.options.GetMode()
-	if op_num == 1 {
-		op_key = uint32(mode_index[mode])
-		tag = mode_func[mode]
-	}
-
 	if es.map_op_stats == nil {
 		return
 	}
 
+	var valid_indexs = []uint32{}
+	for idx, op := range OP_LIST {
+		if op != "" {
+			valid_indexs = append(valid_indexs, uint32(idx))
+		}
+	}
+
+	use_all_op, used_op := es.options.GetOpMode()
+
+	if use_all_op {
+		// alternately show all ops status
+		key = tick % uint32(len(valid_indexs))
+	} else {
+		// show one op status if only one op is enabeld
+		key = uint32(used_op)
+	}
+
+	var op_key = valid_indexs[key]
+	var tag = OP_LIST[op_key]
 	var all uint32 = 0
 	var err error
 	var all_pkt_key = uint32(0)

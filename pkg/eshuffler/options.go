@@ -11,6 +11,10 @@ import (
 type ESOptions struct {
 	Mode int `yaml:"mode"`
 
+	/* 测试单独的op的效果
+	 */
+	USE_OP int `yaml:"use_op"`
+
 	// network interface
 	NetInf string `yaml:"net_inf"`
 	// InfIndex int    `yaml:"inf_index"` // 填网卡名字就行
@@ -20,24 +24,39 @@ type ESOptions struct {
 }
 
 const (
-	MODE_OP1 = 0b1
-	MODE_OP2 = 0b10
-	MODE_OP3 = 0b100
-	MODE_OP4 = 0b1000
+	MODE_ALL_OP    = 0
+	MODE_SINGLE_OP = 1
 )
 
-var mode_index = map[int]int{
-	MODE_OP1: 1,
-	MODE_OP2: 2,
-	MODE_OP3: 3,
-	MODE_OP4: 4,
+const TC_TAIL_CALL_MAP = "tc_jump_table"
+
+/*
+和 tail_call_map/logs中的op编号保持一致
+ebpf/operation/op_states.h:16
+*/
+var OP_LIST = []string{
+	// no-op, use for statistic all ingress/degress packet number
+	"",
+
+	// op-1
+	"tc_op1_1_duplicated_egress", "tc_op1_2_dummy_seq_ingress",
+
+	// op-2
+	"",
+
+	// op-3
+	"xdp_op3_partial_upload",
+
+	// op-4
+	"tc_op4_wnd_size_egress",
 }
 
-var mode_func = map[int]string{
-	MODE_OP1: "xdp_op1_dummy_packet",
-	MODE_OP2: "", // packet fragment
-	MODE_OP3: "xdp_op3_partial_upload",
-	MODE_OP4: "", // xdp_op4_windows_size
+func (opt *ESOptions) ValidatedOP() {
+	if opt.Mode == MODE_SINGLE_OP {
+		if opt.USE_OP < len(OP_LIST) && OP_LIST[opt.USE_OP] != "" {
+			logrus.Fatalf("Unsupported OP: %d\n", opt.USE_OP)
+		}
+	}
 }
 
 func (opt *ESOptions) ReadOption(fi string) error {
@@ -53,23 +72,12 @@ func (opt *ESOptions) ReadOption(fi string) error {
 		return fmt.Errorf("couldn't decode config file %s: %w", fi, err)
 	}
 
+	opt.ValidatedOP()
+
 	logrus.Infof("Use Options mode: %b Inf: %s α: %f", opt.Mode, opt.NetInf, opt.Alpha)
 	return err
 }
 
-func (opt *ESOptions) GetMode() (int, int) {
-	var mode = opt.Mode
-	var use_ops = 0
-	var first = 0
-	for mode_bit := range mode_func {
-		if mode&mode_bit > 0 {
-			first = mode_bit
-			use_ops++
-		}
-	}
-	if use_ops == 1 {
-		return use_ops, first
-	}
-	// all ops
-	return use_ops, mode
+func (opt *ESOptions) GetOpMode() (bool, int) {
+	return opt.Mode == MODE_ALL_OP, opt.USE_OP
 }

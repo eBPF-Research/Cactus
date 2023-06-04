@@ -3,6 +3,7 @@ package eshuffler
 import (
 	_ "embed"
 	"fmt"
+	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/sirupsen/logrus"
@@ -17,10 +18,13 @@ var ProbeTC []byte
 
 func (es *eShuffler) loadEbpf() {
 
-	// use single op or use all ops
-	es.addXDPProg()
+	// use all op or use single op
+	es.addEShuffleOps()
+
+	// only for development
 	// es.addTestProg()
 
+	// modify bpf bytecode to add some constants
 	es.editeBPFConstants()
 
 	// load maps
@@ -34,14 +38,14 @@ func (es *eShuffler) getMaps() error {
 		return fmt.Errorf("couldn't find maps/xdp_stats_map: %w", err)
 	}
 
-	es.map_deploy_mode, _, err = es.manager.GetMap("xdp_jump_table")
+	es.map_deploy_mode, _, err = es.manager.GetMap("es_jump_table")
 	if err != nil {
-		return fmt.Errorf("couldn't find maps/xdp_prog_array: %w", err)
+		return fmt.Errorf("couldn't find maps/es_jump_table: %w", err)
 	}
 
-	es.map_op_stats, _, err = es.manager.GetMap("xdp_op_stats")
+	es.map_op_stats, _, err = es.manager.GetMap("es_op_stats")
 	if err != nil {
-		return fmt.Errorf("couldn't find maps/xdp_op_stats: %w", err)
+		return fmt.Errorf("couldn't find maps/es_op_stats: %w", err)
 	}
 
 	return err
@@ -60,7 +64,7 @@ func (es *eShuffler) addTestProg() {
 
 	var tc_probe = &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFFuncName: "ingress_redirect",
+			EBPFFuncName: "wnd_size",
 		},
 		IfName:           es.options.NetInf,
 		NetworkDirection: manager.Egress,
@@ -69,77 +73,89 @@ func (es *eShuffler) addTestProg() {
 	es.manager.Probes = append(es.manager.Probes, tc_probe)
 }
 
-func (es *eShuffler) addXDPProg() {
-	/*
-		1. 如果开启多个算法就用tail call dispatch
-		2. 否则只开启一种算法
-	*/
-	var mode = es.options.Mode
-	logrus.Debugf("Current Mode: %b\n", mode)
+func (es *eShuffler) addEShuffleOps() {
 
-	var use_ops = 0
-	for mode_bit, op_name := range mode_func {
-		if mode&mode_bit > 0 {
-			use_ops++
-			logrus.Debugf("\tenable operation: %v", op_name)
+	use_all_op, used_op := es.options.GetOpMode()
+
+	if use_all_op {
+		logrus.Debugf("Current Mode Use All OPs")
+
+		// install ingress/egress program
+		es.addProgByName("tc_dispatch_ingress")
+
+		es.addProgByName("tc_dispatch_egress")
+
+		// 由于暂时只用一个tc的tail call map，所以xdp直接加载
+		// es.addProgByName("xdp_dispatch")
+		es.addProgByName("xdp_op3_partial_upload")
+
+		// install tail calls
+		for idx, op_name := range OP_LIST {
+			if strings.HasPrefix(op_name, "tc_") {
+				es.addTailCallProg(TC_TAIL_CALL_MAP, op_name, idx)
+			}
 		}
-	}
 
-	if use_ops > 1 { // use tail call
-		logrus.Infof("Use tail call")
-		var probe = &manager.Probe{
+	} else {
+		logrus.Debugf("Current Mode Single-OP: %d\n", used_op)
+
+		var op_func_name = OP_LIST[used_op]
+		es.addProgByName(op_func_name)
+	}
+}
+
+func (es *eShuffler) addProgByName(prog_name string) {
+	var probe *manager.Probe = nil
+
+	if strings.HasPrefix(prog_name, "xdp_") {
+		probe = &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "xdp_dispatch",
+				EBPFFuncName: prog_name,
 			},
 			// ip a # second inf
 			IfName: es.options.NetInf,
 			// IfIndex:       2, // change this to the interface index connected to the internet
 			XDPAttachMode: manager.XdpAttachModeSkb,
 		}
+	}
 
-		var tail_calls = []manager.TailCallRoute{}
-		for mode_bit, xdp_func := range mode_func {
-			if xdp_func == "" {
-				continue
-			}
-			if mode&mode_bit > 0 {
-				var tail_call = manager.TailCallRoute{
-					ProgArrayName: "xdp_jump_table",
-					Key:           uint32(mode_index[mode_bit]),
-					ProbeIdentificationPair: manager.ProbeIdentificationPair{
-						EBPFFuncName: xdp_func,
-					},
-				}
-				logrus.Infof("Add tail call op: %s key: %d", xdp_func, mode_index[mode_bit])
-				tail_calls = append(tail_calls, tail_call)
-			}
+	if strings.HasPrefix(prog_name, "tc_") {
+
+		var net_dir = manager.Ingress
+		if strings.HasSuffix(prog_name, "_egress") {
+			net_dir = manager.Egress
 		}
 
+		probe = &manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: prog_name,
+			},
+			IfName:           es.options.NetInf,
+			NetworkDirection: net_dir,
+		}
+
+	}
+
+	if probe != nil {
+		logrus.Debug("\tInstall Prog: ", prog_name)
 		es.manager.Probes = append(es.manager.Probes, probe)
-		es.managerOptions.TailCallRouter = append(es.managerOptions.TailCallRouter, tail_calls...)
-	} else {
-		logrus.Infof("Install single XDP program to inf: %s", es.options.NetInf)
-		for mode_bit, xdp_func := range mode_func {
-			if mode&mode_bit > 0 {
-				var xdp_probe = &manager.Probe{
-					ProbeIdentificationPair: manager.ProbeIdentificationPair{
-						EBPFFuncName: xdp_func,
-					},
-					// ip a # second inf
-					IfName: es.options.NetInf,
-					// IfIndex:       2, // change this to the interface index connected to the internet
-					XDPAttachMode: manager.XdpAttachModeSkb,
-				}
-				es.manager.Probes = append(es.manager.Probes, xdp_probe)
-				logrus.Infof("Install XDP: %s", xdp_func)
-				break
-			}
-		}
 	}
 }
 
+func (es *eShuffler) addTailCallProg(jump_table string, prog_name string, key int) {
+	var tail_call = manager.TailCallRoute{
+		ProgArrayName: jump_table,
+		Key:           uint32(key),
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			EBPFFuncName: prog_name,
+		},
+	}
+	logrus.Infof("\tAdd tail call op: %s key: %d", prog_name, key)
+	es.managerOptions.TailCallRouter = append(es.managerOptions.TailCallRouter, tail_call)
+}
+
 func (es *eShuffler) editeBPFConstants() {
-	op_num, op_mode := es.options.GetMode()
+	use_all_op, used_op := es.options.GetOpMode()
 	constants := []manager.ConstantEditor{
 		{
 			Name:  "opt_alpha",
@@ -147,13 +163,12 @@ func (es *eShuffler) editeBPFConstants() {
 		},
 	}
 	// 只启用一种算法，用于评测
-	if op_num == 1 {
-		op_index := mode_index[op_mode]
+	if !use_all_op {
 		constants = append(constants, manager.ConstantEditor{
 			Name:  "one_op",
-			Value: uint64(op_index),
+			Value: uint64(used_op),
 		})
-		logrus.Infof("Only use one op: %d", op_index)
+		logrus.Infof("Only use one op: %d", used_op)
 	}
 	es.managerOptions.ConstantEditors = append(es.managerOptions.ConstantEditors, constants...)
 }

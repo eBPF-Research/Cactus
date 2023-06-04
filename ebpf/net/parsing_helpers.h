@@ -26,11 +26,11 @@ struct hdr_cursor {
 	void *pos;
 };
 
-// /*
-//  *	struct vlan_hdr - vlan header
-//  *	@h_vlan_TCI: priority and VLAN ID
-//  *	@h_vlan_encapsulated_proto: packet type ID or len
-//  */
+/*
+ *	struct vlan_hdr - vlan header
+ *	@h_vlan_TCI: priority and VLAN ID
+ *	@h_vlan_encapsulated_proto: packet type ID or len
+ */
 // struct vlan_hdr {
 // 	__be16	h_vlan_TCI;
 // 	__be16	h_vlan_encapsulated_proto;
@@ -319,6 +319,73 @@ static __always_inline int parse_tcphdr(struct hdr_cursor *nh,
 	*tcphdr = h;
 
 	return len;
+}
+
+
+static __always_inline 
+bool is_ack_packet_xdp(struct xdp_md *ctx) {
+	void *data_end = (void *)(long)ctx->data_end;
+	void *data = (void *)(long)ctx->data;
+	struct hdr_cursor nh;
+	struct ethhdr *eth;
+	struct iphdr *iphdr;
+	struct tcphdr *tcphdr;
+
+	int eth_type;
+	int ip_type;
+	int tcp_len;
+
+	nh.pos = data;
+
+	eth_type = parse_ethhdr(&nh, data_end, &eth);
+	if (eth_type == bpf_htons(ETH_P_IP)) {
+		ip_type = parse_iphdr(&nh, data_end, &iphdr);
+		if (ip_type < 0) {
+			return false;
+		}
+		if (ip_type == IPPROTO_TCP) {
+			tcp_len = parse_tcphdr(&nh, data_end, &tcphdr);
+			if (tcp_len < 0) {
+				return false;
+			}
+			return tcphdr->ack == 1;
+		}
+	}
+
+	return false;
+}
+
+static __always_inline 
+bool is_ack_packet_tc(struct __sk_buff *ctx) {
+	void *data_end = (void *)(long)ctx->data_end;
+	void *data = (void *)(long)ctx->data;
+	struct hdr_cursor nh;
+	struct ethhdr *eth;
+	struct iphdr *iphdr;
+	struct tcphdr *tcphdr;
+
+	int eth_type;
+	int ip_type;
+	int tcp_len;
+
+	nh.pos = data;
+
+	eth_type = parse_ethhdr(&nh, data_end, &eth);
+	if (eth_type == bpf_htons(ETH_P_IP)) {
+		ip_type = parse_iphdr(&nh, data_end, &iphdr);
+		if (ip_type < 0) {
+			return false;
+		}
+		if (ip_type == IPPROTO_TCP) {
+			tcp_len = parse_tcphdr(&nh, data_end, &tcphdr);
+			if (tcp_len < 0) {
+				return false;
+			}
+			return tcphdr->ack == 1;
+		}
+	}
+
+	return false;
 }
 
 #endif /* __PARSING_HELPERS_H */

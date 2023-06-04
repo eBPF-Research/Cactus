@@ -16,23 +16,10 @@
 	dst[4] = src[4]; \
 	dst[5] = src[5];
 
-static __always_inline u16 modify_csums(u16 csum, u16 old, u16 new) {
-	u32 tmp = csum;
-	tmp += old;
-	tmp += (~new & 0xffff);
-	return from32to16(tmp);
-}
-
-static __always_inline u16 modify_csuml(u16 csum, u32 old, u32 new) {
-	u32 tmp = csum;
-	tmp += (old & 0xffff) + (old >> 16) + (~new & 0xffff) + (~new >> 16);
-	return from32to16(tmp);
-}
-
 // OP-1
 // execute the following command first
 // sysctl -w net.ipv4.ip_forward=1
-SEC("xdp/dummy_packet")
+// SEC("xdp/dummy_packet")
 int xdp_op1_dummy_packet(struct xdp_md *ctx) {
 	u32 action = XDP_PASS;
 
@@ -50,7 +37,7 @@ int xdp_op1_dummy_packet(struct xdp_md *ctx) {
 	bool is_rolled = true; // tail call 跳转过开的
 	int one_op = use_one_op();
 	if (one_op) {
-		xdp_stats_record_op(ctx, XDP_OP_DEFAULT);	
+		es_stats_record_op(ES_OP_ALL_PKT);	
 		is_rolled = false;
 		// bpf_printk("choose op: %d %d\n", one_op, __LINE__);
 	}
@@ -109,7 +96,7 @@ int xdp_op1_dummy_packet(struct xdp_md *ctx) {
 				__builtin_memcpy(eth->h_dest, fib_params.dmac, ETH_ALEN);
 				__builtin_memcpy(eth->h_source, fib_params.smac, ETH_ALEN);
 				action = bpf_redirect(fib_params.ifindex, 0);
-				xdp_stats_record_op(ctx, XDP_OP_1);
+				// es_stats_record_op(ES_OP);
 				break;
 			case BPF_FIB_LKUP_RET_BLACKHOLE:    /* dest is blackholed; can be dropped */
 			case BPF_FIB_LKUP_RET_UNREACHABLE:  /* dest is unreachable; can be dropped */
@@ -150,10 +137,7 @@ int xdp_op3_partial_upload(struct xdp_md *ctx) {
 	nh.pos = data;
 
 	// 只开启一种算法
-	int one_op = use_one_op();
-	if (one_op) {
-		xdp_stats_record_op(ctx, XDP_OP_DEFAULT);	
-	}
+	es_stats_one_op_mode();
 
 	u32 p = get_alpha_precent();
 	
@@ -186,7 +170,7 @@ int xdp_op3_partial_upload(struct xdp_md *ctx) {
 			u32 remain_len = rand_n(payload_len + 1);
 			// bpf_printk("remain_len: %d payload: %d\n", remain_len, payload_len);
 			if (remain_len == 0) { // drop
-				xdp_stats_record_op(ctx, XDP_OP_3);
+				es_stats_record_op(ES_OP3_XDP);
 				action = XDP_DROP;
 				goto out;
 			}
@@ -201,7 +185,7 @@ int xdp_op3_partial_upload(struct xdp_md *ctx) {
 				action = XDP_ABORTED;
 				goto out;
 			}
-			xdp_stats_record_op(ctx, XDP_OP_3);
+			es_stats_record_op(ES_OP3_XDP);
 			goto out;
 		}
 	}
@@ -211,15 +195,12 @@ int xdp_op3_partial_upload(struct xdp_md *ctx) {
 
 // Deprecated，已经修改设计不再需要这种op
 // OP-5: randomly drop packet at P probability 
-SEC("xdp/random_drop")
+// SEC("xdp/random_drop")
 int xdp_op5_random_drop(struct xdp_md *ctx) {
 	u32 action = XDP_PASS;
 
 	// 只开启一种算法
-	int one_op = use_one_op();
-	if (one_op) {
-		xdp_stats_record_op(ctx, XDP_OP_DEFAULT);	
-	}
+	es_stats_one_op_mode();
 
 	u32 p = get_alpha_precent();	
 	
@@ -227,7 +208,7 @@ int xdp_op5_random_drop(struct xdp_md *ctx) {
 		action = XDP_DROP;
 	}
 
-	// xdp_stats_record_op(ctx, XDP_OP_4);
+	// es_stats_record_op(XDP_OP_4);
 	return xdp_stats_record_action(ctx, action);
 }
 
