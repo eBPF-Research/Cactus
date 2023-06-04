@@ -20,28 +20,8 @@ struct bpf_map_def SEC("maps/xdp_jump_table") xdp_jump_table = {
 	.type = BPF_MAP_TYPE_PROG_ARRAY,
 	.key_size = sizeof(__u32),
 	.value_size = sizeof(__u32),
-	.max_entries = 34,
+	.max_entries = XDP_OP_END + 1,
 };
-
-// use contanst to choose jump target
-
-// SEC("xdp/op_1")
-// int xdp_op1(struct xdp_md *ctx) {
-// 	bpf_printk("xdp_op1\n");
-// 	return XDP_PASS;
-// }
-
-// SEC("xdp/op_2")
-// int xdp_op2(struct xdp_md *ctx) {
-// 	bpf_printk("xdp_op2\n");
-// 	return XDP_PASS;
-// }
-
-// SEC("xdp/op_3")
-// int xdp_op3(struct xdp_md *ctx) {
-// 	bpf_printk("xdp_op3\n");
-// 	return XDP_PASS;
-// }
 
 SEC("xdp/ingress")
 int ingress(struct xdp_md *ctx) {
@@ -92,7 +72,7 @@ int xdp_dispatch(struct xdp_md *ctx) {
 	xdp_stats_record_op(ctx, XDP_OP_DEFAULT);
 
 	u32 alpha = get_alpha_precent();
-	int use_op_1 = roll(alpha);
+	bool use_op_1 = roll(alpha);
 
 	/* 实际测试发现ack包过少，所以先看op-1能不能触发，不能执行再去看op-3能不能触发
 	*/

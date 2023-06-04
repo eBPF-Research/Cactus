@@ -38,7 +38,7 @@ $ sudo make run
 ```
 
 开发Notes:   
-ebpf-manager，~~ 头文件用CO-RE模式，只依赖生成的vmlinux.h，尽量不要依赖uapi。其他缺失的手动补全。~~
-https://www.yuque.com/fripside/rx1ngg/en0iczwsu3s5077y
+ebpf-manager，~~头文件用CO-RE模式，只依赖生成的vmlinux.h，尽量不要依赖uapi。其他缺失的手动补全~~  
+https://www.yuque.com/fripside/rx1ngg/en0iczwsu3s5077y  
 
 为了支持kernel 5.4，不使用CO-RE (undefine USE_CO_RE)。使用本地的uapi和linux header。

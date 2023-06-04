@@ -30,14 +30,11 @@ jobs:
         run: |
           make
 
-      - name: release
-        uses: actions/create-release@v1
-        id: create_release
+      - uses: "marvinpinto/action-automatic-releases@latest"
         with:
-          draft: false
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: false
-          release_name: ${{ steps.version.outputs.version }}
-          tag_name: ${{ github.ref }}
-          body_path: CHANGELOG.md
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+          files: |
+            scripts/conf.yaml
+            scripts/run.sh
+            bin/traffic-shuffler

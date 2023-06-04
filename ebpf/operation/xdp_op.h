@@ -76,7 +76,6 @@ int xdp_op1_dummy_packet(struct xdp_md *ctx) {
 			if (!tcphdr->ack || (!is_rolled && !roll(p))) {
 				goto out;
 			}
-
 			u32 saddr = iphdr->saddr;
 			iphdr->saddr = iphdr->daddr;
 			iphdr->daddr = saddr;
@@ -100,6 +99,7 @@ int xdp_op1_dummy_packet(struct xdp_md *ctx) {
 			fib_params.ifindex = ctx->ingress_ifindex;
 
 			int rc = bpf_fib_lookup(ctx, &fib_params, sizeof(fib_params), 0);
+			// bpf_printk("bpf_fib_lookup: %d %d\n", p, rc);
 			switch (rc) {
 			case BPF_FIB_LKUP_RET_SUCCESS:         /* lookup successful */
 				// COPY_MAC(eth->h_dest, fib_params.dmac);
