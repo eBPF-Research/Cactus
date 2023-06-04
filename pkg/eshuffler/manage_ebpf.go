@@ -60,10 +60,10 @@ func (es *eShuffler) addTestProg() {
 
 	var tc_probe = &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFFuncName: "dummy_seq",
+			EBPFFuncName: "duplicated_egress",
 		},
 		IfName:           es.options.NetInf,
-		NetworkDirection: manager.Ingress,
+		NetworkDirection: manager.Egress,
 	}
 	// es.manager.Probes = append(es.manager.Probes, xdp_probe)
 	es.manager.Probes = append(es.manager.Probes, tc_probe)

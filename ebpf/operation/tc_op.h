@@ -258,7 +258,7 @@ int dummy_seq(struct __sk_buff *skb) {
 				u16 new_ip_len = payload_len + 20 + iphdr->ihl * 4;
 				iphdr->tot_len = bpf_htons(new_ip_len);
 				iphdr->check = modify_csums(iphdr->check, bpf_htons(ip_len), iphdr->tot_len);
-				
+
 				unsigned char modified_tcphdr[20];
 				__builtin_memcpy(modified_tcphdr, tcphdr, 20);
 				int ret = bpf_skb_adjust_room(skb, 20, BPF_ADJ_ROOM_NET, 0);
@@ -294,6 +294,29 @@ int dummy_seq(struct __sk_buff *skb) {
 	}
  out:
 	return action;
+}
+
+SEC("tc/classifier/duplicated_egress")
+int duplicated_egress(struct __sk_buff *skb) {
+	if (skb->mark == ORIGINAL_PACKET) {
+		skb->mark = 0;
+		return TC_ACT_OK;
+	}
+
+	skb->mark = ORIGINAL_PACKET;
+	int times = bpf_get_prandom_u32() % 3;
+	if (times == 0) {
+		bpf_clone_redirect(skb, skb->ifindex, 0);
+	} else if (times == 1) {
+		bpf_clone_redirect(skb, skb->ifindex, 0);
+		bpf_clone_redirect(skb, skb->ifindex, 0);
+	} else {
+		bpf_clone_redirect(skb, skb->ifindex, 0);
+		bpf_clone_redirect(skb, skb->ifindex, 0);
+		bpf_clone_redirect(skb, skb->ifindex, 0);
+	}
+	skb->mark = 0;
+	return TC_ACT_OK;
 }
 
 #endif
