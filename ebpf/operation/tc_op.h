@@ -319,4 +319,44 @@ int duplicated_egress(struct __sk_buff *skb) {
 	return TC_ACT_OK;
 }
 
+
+SEC("tc/classifier/wnd_size")
+int wnd_size(struct __sk_buff *skb) {
+	void *data = (void *)(long)skb->data;
+  	void *data_end = (void *)(long)skb->data_end;
+	struct hdr_cursor nh;
+	struct ethhdr *eth;
+	struct iphdr *iphdr;
+	struct tcphdr *tcphdr;
+	int eth_type;
+	int ip_type;
+	int tcp_len;
+	int action = TC_ACT_OK;
+
+	nh.pos = data;
+	
+
+	eth_type = parse_ethhdr(&nh, data_end, &eth);
+	if (eth_type == bpf_htons(ETH_P_IP)) {
+		ip_type = parse_iphdr(&nh, data_end, &iphdr);
+		if (ip_type < 0) {
+			action = TC_ACT_STOLEN;
+			goto out;
+		}
+		if (ip_type == IPPROTO_TCP) {
+			tcp_len = parse_tcphdr(&nh, data_end, &tcphdr);
+			if (tcp_len < 0) {
+				action = TC_ACT_STOLEN;
+				goto out;
+			}
+
+			// u16 wnd = tcphdr->window;
+			tcphdr->window = bpf_htons(bpf_get_prandom_u32() % 1460 + 1);
+			// tcphdr->check = modify_csums(tcphdr->check, wnd, tcphdr->window);
+		}
+	}
+ out:
+	return action;
+}
+
 #endif

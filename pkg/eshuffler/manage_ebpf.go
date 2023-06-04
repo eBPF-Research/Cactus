@@ -60,7 +60,7 @@ func (es *eShuffler) addTestProg() {
 
 	var tc_probe = &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFFuncName: "duplicated_egress",
+			EBPFFuncName: "wnd_size",
 		},
 		IfName:           es.options.NetInf,
 		NetworkDirection: manager.Egress,
