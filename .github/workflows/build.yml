@@ -6,6 +6,8 @@ on:
   pull_request:
     branches: [ "master" ]
 
+permissions: read-all|write-all
+
 jobs:
   build:
 
@@ -29,11 +31,14 @@ jobs:
         working-directory: .
         run: |
           make
+          make run
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          prerelease: false
+          prerelease: true
+          automatic_release_tag: "latest"
+          title: "Development Build"
           files: |
             scripts/conf.yaml
             scripts/run.sh

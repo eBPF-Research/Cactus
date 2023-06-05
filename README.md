@@ -2,6 +2,8 @@
 ## eBPF Traffic Shuffler
 利用eBPF修改TLS包的传播，实现对加密流的识别的防御。  
 
+[![Go eBPF CI](https://github.com/eBPF-Research/eBPF-Traffic-Shuffler/actions/workflows/build.yml/badge.svg?branch=master&event=push)](https://github.com/eBPF-Research/eBPF-Traffic-Shuffler/actions/workflows/build.yml)
+
 ### 开发说明
 项目结构遵循[Go标准项目布局](https://dev.to/jinxankit/go-project-structure-and-guidelines-4ccm), 其文件如下：
 ```

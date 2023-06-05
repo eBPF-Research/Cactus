@@ -49,13 +49,14 @@ func main() {
 
 	logrus.Infoln("eShuffler is now running (Ctrl + C to stop)\n")
 	stopper := make(chan os.Signal, 1)
-	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(stopper, os.Interrupt, syscall.SIGTSTP,
+		syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL)
 	// signal.Notify(stopper, os.Kill, syscall.SIGKILL)
 
 	waitForExit := func() {
 		<-stopper
 		eShuffler.Stop()
-		logrus.Infoln("eShuffler Exit!-With Ctrl-C!")
+		logrus.Infoln("eShuffler Exit! Clean up eBPF programs!")
 		os.Exit(0)
 	}
 
