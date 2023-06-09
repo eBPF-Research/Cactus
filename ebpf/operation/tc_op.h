@@ -4,8 +4,12 @@
 #include "include/all.h"
 #include "net/checksum.h"
 #include "net/parsing_helpers.h"
+#include "net/random.h"
 
-#define ORIGINAL_PACKET 0b10
+#define ORIGINAL_PACKET 2
+#define EGRESS_PACKET 3
+#define PROCESSED_PACKET 4
+#define FRAGMENT_PACKET 1024
 
 SEC("tc/classifier/log")
 int log_func(struct __sk_buff *skb) {
@@ -358,5 +362,265 @@ int wnd_size(struct __sk_buff *skb) {
  out:
 	return action;
 }
+
+// TODO: disable when SYN exists
+SEC("tc/classifier/egress_dummy")
+int egress_dummy(struct __sk_buff *skb) {
+	if (skb->mark == ORIGINAL_PACKET) {
+		skb->mark = 0;
+		return TC_ACT_OK;
+	}
+
+	void *data = (void *)(long)skb->data;
+  	void *data_end = (void *)(long)skb->data_end;
+	struct hdr_cursor nh;
+	struct ethhdr *eth;
+	struct iphdr *iphdr;
+	struct tcphdr *tcphdr;
+	int eth_type;
+	int ip_type;
+	int tcp_len;
+	int action = TC_ACT_OK;
+
+	nh.pos = data;
+
+	eth_type = parse_ethhdr(&nh, data_end, &eth);
+	if (eth_type == bpf_htons(ETH_P_IP)) {
+		ip_type = parse_iphdr(&nh, data_end, &iphdr);
+		if (ip_type < 0) {
+			action = TC_ACT_STOLEN;
+			goto out;
+		}
+		u16 ip_len = bpf_ntohs(iphdr->tot_len);
+		long ret = bpf_skb_pull_data(skb, ip_len + 14);
+		if (ret < 0) {
+			bpf_printk("pull failed %ld", ret);
+			goto out;
+		}
+	}
+	skb->mark = ORIGINAL_PACKET;
+	bpf_clone_redirect(skb, skb->ifindex, 0);
+	skb->mark = 0;
+
+	data = (void *)(long)skb->data;
+  	data_end = (void *)(long)skb->data_end;
+	nh.pos = data;
+
+	eth_type = parse_ethhdr(&nh, data_end, &eth);
+	if (eth_type == bpf_htons(ETH_P_IP)) {
+		ip_type = parse_iphdr(&nh, data_end, &iphdr);
+		if (ip_type < 0) {
+			action = TC_ACT_STOLEN;
+			goto out;
+		}
+		u16 ip_len = bpf_ntohs(iphdr->tot_len);
+		if (ip_type == IPPROTO_TCP) {
+			tcp_len = parse_tcphdr(&nh, data_end, &tcphdr);
+			if (tcp_len < 0) {
+				action = TC_ACT_STOLEN;
+				goto out;
+			}
+			
+			u16 payload_len = ip_len - iphdr->ihl * 4 - tcp_len;
+			if (payload_len < 0) {
+				action = TC_ACT_STOLEN;
+				goto out;
+			}
+
+			u32 new_len = ip_len + 14 - rand_n(payload_len);
+			iphdr->tot_len = bpf_htons(new_len - 14);
+			iphdr->check = modify_csums(iphdr->check, bpf_htons(ip_len), iphdr->tot_len);
+			tcphdr->check = modify_csums(tcphdr->check, iphdr->tot_len, bpf_htons(ip_len));
+			long ret = bpf_skb_change_tail(skb, new_len, 0);
+			if (ret < 0) {
+				action = TC_ACT_STOLEN;
+				goto out;
+			}
+		}
+	}
+	
+ out:
+	return action;
+}
+
+// TODO: disable when SYN exists
+SEC("tc/classifier/egress_split")
+int egress_split(struct __sk_buff *skb) {
+	void *data = (void *)(long)skb->data;
+  	void *data_end = (void *)(long)skb->data_end;
+	struct hdr_cursor nh;
+	struct ethhdr *eth;
+	struct iphdr *iphdr;
+	struct tcphdr *tcphdr;
+	int eth_type;
+	int ip_type;
+	int tcp_len;
+	int action = TC_ACT_OK;
+	int new_payload_len;
+
+	nh.pos = data;
+
+	if (skb->mark > FRAGMENT_PACKET) {
+		unsigned payload_start = skb->mark - FRAGMENT_PACKET;
+		skb->mark = 0;
+		eth_type = parse_ethhdr(&nh, data_end, &eth);
+		if (eth_type == bpf_htons(ETH_P_IP)) {
+			ip_type = parse_iphdr(&nh, data_end, &iphdr);
+			if (ip_type < 0) {
+				action = TC_ACT_STOLEN;
+				goto out;
+			}
+			u16 ip_len = bpf_ntohs(iphdr->tot_len);
+			if (ip_type == IPPROTO_TCP) {
+				tcp_len = parse_tcphdr(&nh, data_end, &tcphdr);
+				if (tcp_len < 0) {
+					action = TC_ACT_STOLEN;
+					goto out;
+				}
+				
+				u16 payload_len = ip_len - iphdr->ihl * 4 - tcp_len;
+				if (payload_len < 0) {
+					action = TC_ACT_STOLEN;
+					goto out;
+				}
+
+				new_payload_len = payload_len - payload_start;
+				bpf_printk("new_payload_len: %d", new_payload_len);
+				u32 new_len = 14 + iphdr->ihl * 4 + 20 + new_payload_len;
+				iphdr->tot_len = bpf_htons(new_len - 14);
+				iphdr->check = modify_csums(iphdr->check, bpf_htons(ip_len), iphdr->tot_len);
+				tcphdr->seq = bpf_htonl(bpf_ntohl(tcphdr->seq) + payload_start);
+				tcphdr->check = modify_csums(tcphdr->check, iphdr->tot_len, bpf_htons(ip_len));
+				tcphdr->doff = 5;
+
+				unsigned char modified_tcphdr[20];
+				__builtin_memcpy(modified_tcphdr, tcphdr, 20);
+				int ret = bpf_skb_adjust_room(skb, new_payload_len + 20 - tcp_len - payload_len, BPF_ADJ_ROOM_NET, 0);
+				if (ret < 0) {
+					action = TC_ACT_STOLEN;
+					goto out;
+				}
+
+				data = (void *)(long)skb->data;
+				data_end = (void *)(long)skb->data_end;
+				nh.pos = data;
+				eth_type = parse_ethhdr(&nh, data_end, &eth);
+				if (eth_type == bpf_htons(ETH_P_IP)) {
+					ip_type = parse_iphdr(&nh, data_end, &iphdr);
+					if (ip_type < 0) {
+						action = TC_ACT_STOLEN;
+						goto out;
+					}
+					if (nh.pos + 20 <= data_end) {
+						__builtin_memcpy(nh.pos, modified_tcphdr, 20);
+					}
+					tcp_len = parse_tcphdr(&nh, data_end, &tcphdr);
+					if (tcp_len < 0) {
+						action = TC_ACT_STOLEN;
+						goto out;
+					}
+					tcphdr->check = 0;
+					tcphdr->check = udp_csum(iphdr->saddr, iphdr->daddr, new_payload_len + 20, IPPROTO_TCP, (u16*)tcphdr, data_end);
+					bpf_printk("%x", tcphdr->check);
+				}
+			}
+		}
+		goto out;
+	}
+
+	eth_type = parse_ethhdr(&nh, data_end, &eth);
+	if (eth_type == bpf_htons(ETH_P_IP)) {
+		ip_type = parse_iphdr(&nh, data_end, &iphdr);
+		if (ip_type < 0) {
+			action = TC_ACT_STOLEN;
+			goto out;
+		}
+		u16 ip_len = bpf_ntohs(iphdr->tot_len);
+		long ret = bpf_skb_pull_data(skb, ip_len + 14);
+		if (ret < 0) {
+			bpf_printk("pull failed %ld", ret);
+			goto out;
+		}
+		goto check;
+	}
+	goto out;
+
+ check:
+	data = (void *)(long)skb->data;
+  	data_end = (void *)(long)skb->data_end;
+	nh.pos = data;
+
+	eth_type = parse_ethhdr(&nh, data_end, &eth);
+	if (eth_type == bpf_htons(ETH_P_IP)) {
+		ip_type = parse_iphdr(&nh, data_end, &iphdr);
+		if (ip_type < 0) {
+			action = TC_ACT_STOLEN;
+			goto out;
+		}
+		u16 ip_len = bpf_ntohs(iphdr->tot_len);
+		if (ip_type == IPPROTO_TCP) {
+			tcp_len = parse_tcphdr(&nh, data_end, &tcphdr);
+			if (tcp_len < 0) {
+				action = TC_ACT_STOLEN;
+				goto out;
+			}
+			
+			u16 payload_len = ip_len - iphdr->ihl * 4 - tcp_len;
+			if (payload_len < 0) {
+				action = TC_ACT_STOLEN;
+				goto out;
+			}
+
+			new_payload_len = rand_n(payload_len - 1) + 1;
+			skb->mark = FRAGMENT_PACKET + new_payload_len;
+			bpf_clone_redirect(skb, skb->ifindex, 0);
+			skb->mark = 0;
+			goto split;
+		}
+	}
+	goto out;
+	
+ split:
+	data = (void *)(long)skb->data;
+  	data_end = (void *)(long)skb->data_end;
+	nh.pos = data;
+
+	eth_type = parse_ethhdr(&nh, data_end, &eth);
+	if (eth_type == bpf_htons(ETH_P_IP)) {
+		ip_type = parse_iphdr(&nh, data_end, &iphdr);
+		if (ip_type < 0) {
+			action = TC_ACT_STOLEN;
+			goto out;
+		}
+		u16 ip_len = bpf_ntohs(iphdr->tot_len);
+		if (ip_type == IPPROTO_TCP) {
+			tcp_len = parse_tcphdr(&nh, data_end, &tcphdr);
+			if (tcp_len < 0) {
+				action = TC_ACT_STOLEN;
+				goto out;
+			}
+			
+			u16 payload_len = ip_len - iphdr->ihl * 4 - tcp_len;
+			if (payload_len < 0) {
+				action = TC_ACT_STOLEN;
+				goto out;
+			}
+
+			u32 new_len = 14 + iphdr->ihl * 4 + tcphdr->doff * 4 + new_payload_len;
+			iphdr->tot_len = bpf_htons(new_len - 14);
+			iphdr->check = modify_csums(iphdr->check, bpf_htons(ip_len), iphdr->tot_len);
+			tcphdr->check = modify_csums(tcphdr->check, iphdr->tot_len, bpf_htons(ip_len));
+			long ret = bpf_skb_change_tail(skb, new_len, 0);
+			if (ret < 0) {
+				action = TC_ACT_STOLEN;
+				goto out;
+			}
+		}
+	}
+	
+ out:
+	return action;
+}
+
 
 #endif

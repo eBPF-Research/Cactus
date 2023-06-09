@@ -57,16 +57,25 @@ func (es *eShuffler) addTestProg() {
 	// 	// IfIndex:       2, // change this to the interface index connected to the internet
 	// 	XDPAttachMode: manager.XdpAttachModeSkb,
 	// }
+	// es.manager.Probes = append(es.manager.Probes, xdp_probe)
 
-	var tc_probe = &manager.Probe{
+	// var tc_probe_ingress = &manager.Probe{
+	// 	ProbeIdentificationPair: manager.ProbeIdentificationPair{
+	// 		EBPFFuncName: "ingress_redirect",
+	// 	},
+	// 	IfName:           es.options.NetInf,
+	// 	NetworkDirection: manager.Ingress,
+	// }
+	// es.manager.Probes = append(es.manager.Probes, tc_probe_ingress)
+
+	var tc_probe_egress = &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFFuncName: "wnd_size",
+			EBPFFuncName: "egress_split",
 		},
 		IfName:           es.options.NetInf,
 		NetworkDirection: manager.Egress,
 	}
-	// es.manager.Probes = append(es.manager.Probes, xdp_probe)
-	es.manager.Probes = append(es.manager.Probes, tc_probe)
+	es.manager.Probes = append(es.manager.Probes, tc_probe_egress)
 }
 
 func (es *eShuffler) addXDPProg() {
