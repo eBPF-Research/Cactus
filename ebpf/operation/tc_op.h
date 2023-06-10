@@ -10,6 +10,7 @@
 #define EGRESS_PACKET 3
 #define PROCESSED_PACKET 4
 #define FRAGMENT_PACKET 1024
+#define SPLIT_BUFFER_LEN 400
 
 SEC("tc/classifier/log")
 int log_func(struct __sk_buff *skb) {
@@ -456,7 +457,7 @@ int egress_split(struct __sk_buff *skb) {
 	int ip_type;
 	int tcp_len;
 	int action = TC_ACT_OK;
-	int new_payload_len;
+	u16 new_payload_len;
 
 	nh.pos = data;
 
@@ -491,21 +492,18 @@ int egress_split(struct __sk_buff *skb) {
 				tcphdr->seq = bpf_htonl(bpf_ntohl(tcphdr->seq) + payload_start);
 				tcphdr->check = modify_csums(tcphdr->check, iphdr->tot_len, bpf_htons(ip_len));
 
-				char tmp;
+				char tmp[SPLIT_BUFFER_LEN] = {0};
 				int src = 14 + iphdr->ihl * 4 + tcp_len + payload_start;
 				int dst = 14 + iphdr->ihl * 4 + tcp_len;
-				for (int i = 0; i < 1500; i++) {
-					if (i >= new_payload_len) {
-						break;
-					}
-					long ret = bpf_skb_load_bytes(skb, src, &tmp, 1);
-					if (ret < 0) return TC_ACT_STOLEN;
-					ret = bpf_skb_store_bytes(skb, dst, &tmp, 1, 0);
-					if (ret < 0) return TC_ACT_STOLEN;
-					src ++;
-					dst ++;
-				}
-				long ret = bpf_skb_change_tail(skb, new_len, 0);
+				if (new_payload_len > SPLIT_BUFFER_LEN || new_payload_len <= 0) return TC_ACT_STOLEN;
+				new_payload_len &= 511;
+				new_payload_len |= 1;
+				if (new_payload_len > SPLIT_BUFFER_LEN || new_payload_len <= 0) return TC_ACT_STOLEN;
+				long ret = bpf_skb_load_bytes(skb, src, &tmp, (unsigned)new_payload_len);
+				if (ret < 0) return TC_ACT_STOLEN;
+				ret = bpf_skb_store_bytes(skb, dst, &tmp, (unsigned)new_payload_len, 0);
+				if (ret < 0) return TC_ACT_STOLEN;
+				ret = bpf_skb_change_tail(skb, new_len, 0);
 				if (ret < 0) return TC_ACT_STOLEN;
 			}
 		}
@@ -550,12 +548,21 @@ int egress_split(struct __sk_buff *skb) {
 			}
 			
 			u16 payload_len = ip_len - iphdr->ihl * 4 - tcp_len;
-			if (payload_len < 0) {
+			if (payload_len < 10) {
 				action = TC_ACT_STOLEN;
 				goto out;
 			}
 
-			new_payload_len = rand_n(payload_len - 1) + 1;
+			int delta_max = payload_len - 1;
+			if (delta_max > SPLIT_BUFFER_LEN) {
+				delta_max = SPLIT_BUFFER_LEN;
+			}
+			int payload_delta = rand_n(delta_max - 1) + 1;
+			payload_delta |= 1;
+			if (payload_len - payload_delta < 5) {
+				payload_delta -= 2;
+			}
+			new_payload_len = payload_len - payload_delta;
 			skb->mark = FRAGMENT_PACKET + new_payload_len;
 			bpf_clone_redirect(skb, skb->ifindex, 0);
 			skb->mark = 0;
