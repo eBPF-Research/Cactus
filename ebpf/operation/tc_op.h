@@ -457,10 +457,11 @@ int egress_split(struct __sk_buff *skb) {
 	int tcp_len;
 	int action = TC_ACT_OK;
 	int new_payload_len;
+	unsigned char modified_hdr[40];
 
 	nh.pos = data;
 
-	if (skb->mark > FRAGMENT_PACKET) {
+	if (skb->mark > FRAGMENT_PACKET && skb->mark < FRAGMENT_PACKET + 1500) {
 		unsigned payload_start = skb->mark - FRAGMENT_PACKET;
 		skb->mark = 0;
 		eth_type = parse_ethhdr(&nh, data_end, &eth);
@@ -490,12 +491,17 @@ int egress_split(struct __sk_buff *skb) {
 				iphdr->tot_len = bpf_htons(new_len - 14);
 				iphdr->check = modify_csums(iphdr->check, bpf_htons(ip_len), iphdr->tot_len);
 				tcphdr->seq = bpf_htonl(bpf_ntohl(tcphdr->seq) + payload_start);
-				tcphdr->check = modify_csums(tcphdr->check, iphdr->tot_len, bpf_htons(ip_len));
+				// tcphdr->check = modify_csums(tcphdr->check, iphdr->tot_len, bpf_htons(ip_len));
 				tcphdr->doff = 5;
 
-				unsigned char modified_tcphdr[20];
-				__builtin_memcpy(modified_tcphdr, tcphdr, 20);
-				int ret = bpf_skb_adjust_room(skb, new_payload_len + 20 - tcp_len - payload_len, BPF_ADJ_ROOM_NET, 0);
+				// __builtin_memcpy(modified_tcphdr, tcphdr, 20);
+				bpf_skb_load_bytes(skb, 14, modified_hdr, 40);
+				bpf_printk("================");
+				for (int i = 0; i < 40; i++) {
+					bpf_printk("%x", modified_hdr[i]);
+				}
+				bpf_printk("++++++++++++++++");
+				int ret = bpf_skb_adjust_room(skb, new_payload_len + 20 - tcp_len - payload_len, BPF_ADJ_ROOM_MAC, 0);
 				if (ret < 0) {
 					action = TC_ACT_STOLEN;
 					goto out;
@@ -505,24 +511,44 @@ int egress_split(struct __sk_buff *skb) {
 				data_end = (void *)(long)skb->data_end;
 				nh.pos = data;
 				eth_type = parse_ethhdr(&nh, data_end, &eth);
-				if (eth_type == bpf_htons(ETH_P_IP)) {
-					ip_type = parse_iphdr(&nh, data_end, &iphdr);
-					if (ip_type < 0) {
-						action = TC_ACT_STOLEN;
-						goto out;
-					}
-					if (nh.pos + 20 <= data_end) {
-						__builtin_memcpy(nh.pos, modified_tcphdr, 20);
-					}
-					tcp_len = parse_tcphdr(&nh, data_end, &tcphdr);
-					if (tcp_len < 0) {
-						action = TC_ACT_STOLEN;
-						goto out;
-					}
-					tcphdr->check = 0;
-					tcphdr->check = udp_csum(iphdr->saddr, iphdr->daddr, new_payload_len + 20, IPPROTO_TCP, (u16*)tcphdr, data_end);
-					bpf_printk("%x", tcphdr->check);
+				if (eth_type < 0) {
+					action = TC_ACT_STOLEN;
+					goto out;
 				}
+				bpf_printk("================");
+				for (int i = 0; i < 40; i++) {
+					bpf_printk("%x", modified_hdr[i]);
+				}
+				bpf_printk("++++++++++++++++");
+				if (nh.pos + 40 < data_end) {
+					__builtin_memcpy(nh.pos, modified_hdr, 40);
+					// bpf_skb_store_bytes(skb, 14 + iphdr->ihl * 4, modified_tcphdr, 20, BPF_F_RECOMPUTE_CSUM);
+				}
+				bpf_printk("nh.pos: %x, modified_hdr: %x", nh.pos, modified_hdr);
+				bpf_printk("================");
+				for (int i = 0; i < 40; i++) {
+					if (nh.pos + i < data_end) {
+						bpf_printk("%x", *(unsigned char*)(nh.pos + i));
+					}
+				}
+				bpf_printk("++++++++++++++++");
+				return TC_ACT_OK;
+				// if (eth_type == bpf_htons(ETH_P_IP)) {
+				// 	ip_type = parse_iphdr(&nh, data_end, &iphdr);
+				// 	if (ip_type < 0) {
+				// 		action = TC_ACT_STOLEN;
+				// 		goto out;
+				// 	}
+					
+				// 	tcp_len = parse_tcphdr(&nh, data_end, &tcphdr);
+				// 	if (tcp_len < 0) {
+				// 		action = TC_ACT_STOLEN;
+				// 		goto out;
+				// 	}
+				// 	tcphdr->check = 0;
+				// 	tcphdr->check = udp_csum(iphdr->saddr, iphdr->daddr, new_payload_len + 20, IPPROTO_TCP, (u16*)tcphdr, data_end);
+				// 	bpf_printk("%x", tcphdr->check);
+				// }
 			}
 		}
 		goto out;
