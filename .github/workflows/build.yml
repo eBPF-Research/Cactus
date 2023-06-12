@@ -15,7 +15,7 @@ permissions:
 jobs:
   build:
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -36,7 +36,9 @@ jobs:
         run: |
           make
           make run
-          zip eShuffler.zip scripts/conf.yaml scripts/run.sh bin/traffic-shuffler
+          mkdir -p eShuffler 
+          cp scripts/conf.yaml scripts/run.sh bin/traffic-shuffler eShuffler
+          zip -r eShuffler.zip eShuffler/*
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:

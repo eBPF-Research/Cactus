@@ -39,10 +39,10 @@ var OP_LIST = []string{
 	"",
 
 	// op-1
-	"tc_op1_1_duplicated_egress", "tc_op1_2_dummy_seq_ingress",
+	"tc_op1_1_dummy_egress", "tc_op1_2_dummy_seq_ingress",
 
 	// op-2
-	"",
+	"tc_op2_split_egress",
 
 	// op-3
 	"xdp_op3_partial_upload",

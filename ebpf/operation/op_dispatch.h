@@ -3,6 +3,7 @@
 
 #include "include/all.h"
 #include "op_states.h"
+#include "net/random.h"
 #include <stdbool.h>
 
 /*
@@ -60,10 +61,13 @@ int tc_dispatch_ingress(struct __sk_buff *skb) {
 	es_stats_record_op(ES_OP_ALL_PKT);
 
 	u32 alpha = get_alpha_precent();
-	bool use_this_op = roll(alpha);
+	bool use_op = roll(alpha);
 
-	if (use_this_op) {
-		bpf_tail_call(skb, &tc_jump_table, ES_OP1_2_TC);
+	if (use_op) {
+		if (is_ack_packet_tc(skb)) {
+			bpf_tail_call(skb, &tc_jump_table, ES_OP1_2_TC);
+		}
+		
 	}
 
 	return TC_ACT_OK;
@@ -74,15 +78,21 @@ SEC("tc/dispatch_egress")
 int tc_dispatch_egress(struct __sk_buff *skb) {
 	es_stats_record_op(ES_OP_ALL_PKT);
 	u32 alpha = get_alpha_precent();
-	bool use_this_op = roll(alpha);
+	bool use_op = roll(alpha);
 
-	if (use_this_op && is_ack_packet_tc(skb)) {
-		bpf_tail_call(skb, &tc_jump_table, ES_OP4_TC);
-	}
+	if (use_op) {
+		bool use_first_op = roll(50);
+		if (use_first_op) {
+			bpf_tail_call(skb, &tc_jump_table, ES_OP1_1_TC);
+		} else {
+			bpf_tail_call(skb, &tc_jump_table, ES_OP2_TC);
+		}
 
-	// randonly choose one from op-1 or op-2
-	if (use_this_op) {
-		bpf_tail_call(skb, &tc_jump_table, ES_OP1_1_TC);
+	} else if (is_ack_packet_tc(skb)) {
+		use_op = roll(alpha);
+		if (use_op) {
+			bpf_tail_call(skb, &tc_jump_table, ES_OP4_TC);
+		}
 	}
 
 	return TC_ACT_OK;

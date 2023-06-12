@@ -61,16 +61,16 @@ func (es *eShuffler) addTestProg() {
 	// 	// IfIndex:       2, // change this to the interface index connected to the internet
 	// 	XDPAttachMode: manager.XdpAttachModeSkb,
 	// }
+	// es.manager.Probes = append(es.manager.Probes, xdp_probe)
 
-	var tc_probe = &manager.Probe{
+	var tc_probe_egress = &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFFuncName: "wnd_size",
+			EBPFFuncName: "egress_split",
 		},
 		IfName:           es.options.NetInf,
 		NetworkDirection: manager.Egress,
 	}
-	// es.manager.Probes = append(es.manager.Probes, xdp_probe)
-	es.manager.Probes = append(es.manager.Probes, tc_probe)
+	es.manager.Probes = append(es.manager.Probes, tc_probe_egress)
 }
 
 func (es *eShuffler) addEShuffleOps() {
@@ -80,7 +80,7 @@ func (es *eShuffler) addEShuffleOps() {
 	if use_all_op {
 		logrus.Debugf("Current Mode Use All OPs")
 
-		// install ingress/egress program
+		// install ingress/egress dispatch program
 		es.addProgByName("tc_dispatch_ingress")
 
 		es.addProgByName("tc_dispatch_egress")
@@ -89,7 +89,7 @@ func (es *eShuffler) addEShuffleOps() {
 		// es.addProgByName("xdp_dispatch")
 		es.addProgByName("xdp_op3_partial_upload")
 
-		// install tail calls
+		// install tc tail calls
 		for idx, op_name := range OP_LIST {
 			if strings.HasPrefix(op_name, "tc_") {
 				es.addTailCallProg(TC_TAIL_CALL_MAP, op_name, idx)
