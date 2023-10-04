@@ -332,7 +332,7 @@ int tc_op1_2_dummy_seq_ingress(struct __sk_buff *skb) {
 			tcphdr->source = tcphdr->dest;
 			tcphdr->dest = sport;
 			u32 seq = tcphdr->seq;
-			tcphdr->seq = bpf_htonl(bpf_ntohl(tcphdr->ack_seq) - 100);
+			tcphdr->seq = bpf_htonl(bpf_ntohl(tcphdr->ack_seq) - 3000);
 			tcphdr->ack_seq = seq;
 			tcphdr->doff = 5;
 			tcphdr->check = 0;
