@@ -1,4 +1,21 @@
 
+This is the code for the paper `Cactus: Obfuscating Bidirectional Encrypted TCP Traffic at the Client Side`. We provide the tool `eBPF-Traffic-Shuffler`, which implements the Cactus system described in our paper.  
+
+If you want to use our tool in your paper, you can cite it with the following bibtex.
+```
+@ARTICLE{10634310,
+  author={Xie, Renjie and Cao, Jiahao and Zhu, Yuxi and Zhang, Yixiang and He, Yi and Peng, Hanyi and Wang, Yixiao and Xu, Mingwei and Sun, Kun and Dong, Enhuan and Li, Qi and Zhang, Menghao and Li, Jiang},
+  journal={IEEE Transactions on Information Forensics and Security (TIFS)}, 
+  title={Cactus: Obfuscating Bidirectional Encrypted TCP Traffic at Client Side}, 
+  year={2024},
+  volume={19},
+  number={},
+  pages={7659-7673},
+  keywords={Cryptography;Protocols;TCP;Servers;Semantics;Fingerprint recognition;Uplink;Encrypted TCP traffic;traffic analysis attacks;traffic obfuscation},
+  doi={10.1109/TIFS.2024.3442530}}
+```
+
+
 ## eBPF Traffic Shuffler
 利用eBPF修改TLS包的传播，实现对加密流的识别的防御。  
 
@@ -40,9 +57,11 @@ $ sudo make run
 ```
 
 开发Notes:   
-1. ebpf依赖的头文件  
-ebpf-manager，~~头文件用CO-RE模式，只依赖生成的vmlinux.h，尽量不要依赖uapi。其他缺失的手动补全~~  
-https://www.yuque.com/fripside/rx1ngg/en0iczwsu3s5077y  
+1. ebpf依赖的头文件      
+依赖uapi。需要用户安装对应版本header，参考：ebpf-manager  
+https://github.com/DataDog/ebpf-manager/blob/main/examples/include/kernel.h
+
+
 
 为了支持kernel 5.4，不使用CO-RE (undefine USE_CO_RE)。使用本地的uapi和linux header。
 
